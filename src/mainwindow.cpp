@@ -99,6 +99,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     contextMenu->addSeparator();
     contextMenu->addMenu(actionManager.buildViewMenu(true, contextMenu));
     contextMenu->addMenu(actionManager.buildToolsMenu(true, contextMenu));
+    actionManager.addCloneOfAction(contextMenu, "retouch");
     contextMenu->addMenu(actionManager.buildHelpMenu(true, contextMenu));
 
     connect(contextMenu, &QMenu::triggered, this, [this](QAction *triggeredAction) {
@@ -1193,4 +1194,19 @@ int MainWindow::getTitlebarOverlap() const
 #endif
 
     return 0;
+}
+
+void MainWindow::toggleRetouchMode()
+{
+    graphicsView->toggleRetouchMode();
+}
+
+void MainWindow::applyRetouch()
+{
+    graphicsView->applyRetouch();
+}
+
+void MainWindow::changeBrushSize(int delta)
+{
+    graphicsView->changeBrushSize(delta);
 }

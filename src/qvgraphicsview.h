@@ -46,9 +46,13 @@ public:
 
     void closeImage();
     void jumpToNextFrame();
+    enum class RetouchTool { Off, Brush, Lasso };
     void setPaused(const bool &desiredState);
     void setSpeed(const int &desiredSpeed);
     void rotateImage(int rotation);
+    void toggleRetouchMode();
+    void applyRetouch();
+    void changeBrushSize(int delta);
 
     const QVImageCore::FileDetails &getCurrentFileDetails() const
     {
@@ -90,6 +94,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
 
     bool event(QEvent *event) override;
+
+    void drawForeground(QPainter *painter, const QRectF &rect) override;
 
     void fitInViewMarginless(const QRectF &rect);
     void fitInViewMarginless(const QGraphicsItem *item);
@@ -136,5 +142,17 @@ private:
     Qt::MouseButton mousePressButton;
     Qt::KeyboardModifiers mousePressModifiers;
     QPoint mousePressPosition;
+
+    // Retouching
+    RetouchTool retouchTool = RetouchTool::Off;
+    bool isDrawing = false;
+    QImage maskImage;
+    QGraphicsPixmapItem *maskItem = nullptr;
+    int brushSize = 50;
+    QPointF lastMouseScenePos;
+    QPolygonF lassoPolygon;
+    void updateMaskItem();
+    void paintOnMask(const QPointF &scenePos);
+    void finalizeLasso();
 };
 #endif // QVGRAPHICSVIEW_H

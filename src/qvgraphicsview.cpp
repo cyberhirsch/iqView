@@ -12,6 +12,12 @@
 #include <QtMath>
 #include <QGestureEvent>
 #include <QScrollBar>
+#include <QApplication>
+#include <QProcess>
+#include <QDir>
+#include <QCoreApplication>
+#include <QPainter>
+#include <QPen>
 
 QVGraphicsView::QVGraphicsView(QWidget *parent) : QGraphicsView(parent)
 {
@@ -57,6 +63,10 @@ QVGraphicsView::QVGraphicsView(QWidget *parent) : QGraphicsView(parent)
 
     loadedPixmapItem = new QGraphicsPixmapItem();
     scene->addItem(loadedPixmapItem);
+
+    maskItem = new QGraphicsPixmapItem(loadedPixmapItem);
+    maskItem->setOpacity(0.5); // 50% transparency for the red mask
+    maskItem->setZValue(1);    // Above the image
 
     // Connect to settings signal
     connect(&qvApp->getSettingsManager(), &SettingsManager::settingsUpdated, this,
@@ -164,6 +174,26 @@ void QVGraphicsView::mousePressEvent(QMouseEvent *event)
         }
     }
 
+    if (retouchTool != RetouchTool::Off) {
+        if (event->button() == Qt::LeftButton) {
+            isDrawing = true;
+            if (retouchTool == RetouchTool::Lasso)
+                lassoPolygon.clear();
+            paintOnMask(mapToScene(event->pos()));
+            return;
+        } else if (event->button() == Qt::MiddleButton) {
+            applyRetouch();
+            return;
+        } else if (event->button() == Qt::RightButton) {
+            // Cancel/Exit if in retouch mode
+            toggleRetouchMode();
+            retouchTool = RetouchTool::Off; // Force off if right click 
+            // Wait, maybe right click should just exit the mode?
+            // "cancel with right mouse button"
+            return;
+        }
+    }
+
     QGraphicsView::mousePressEvent(event);
 }
 
@@ -183,11 +213,30 @@ void QVGraphicsView::mouseMoveEvent(QMouseEvent *event)
         return;
     }
 
+    lastMouseScenePos = mapToScene(event->pos());
+
+    if (retouchTool != RetouchTool::Off && isDrawing) {
+        paintOnMask(lastMouseScenePos);
+        return;
+    }
+
+    if (retouchTool != RetouchTool::Off) {
+        viewport()->update();
+        return;
+    }
+
     QGraphicsView::mouseMoveEvent(event);
 }
 
 void QVGraphicsView::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (retouchTool != RetouchTool::Off && event->button() == Qt::LeftButton) {
+        isDrawing = false;
+        if (retouchTool == RetouchTool::Lasso)
+            finalizeLasso();
+        return;
+    }
+
     mousePressButton = Qt::NoButton;
     mousePressModifiers = Qt::NoModifier;
     QGraphicsView::mouseReleaseEvent(event);
@@ -796,4 +845,176 @@ void QVGraphicsView::setSpeed(const int &desiredSpeed)
 void QVGraphicsView::rotateImage(int rotation)
 {
     imageCore.rotateImage(rotation);
+}
+
+void QVGraphicsView::toggleRetouchMode()
+{
+    if (!getCurrentFileDetails().isPixmapLoaded)
+        return;
+
+    // Cycle: Off -> Brush -> Lasso -> Off
+    if (retouchTool == RetouchTool::Off) retouchTool = RetouchTool::Brush;
+    else if (retouchTool == RetouchTool::Brush) retouchTool = RetouchTool::Lasso;
+    else retouchTool = RetouchTool::Off;
+
+    if (retouchTool != RetouchTool::Off) {
+        setDragMode(QGraphicsView::NoDrag);
+        setMouseTracking(true);
+        viewport()->setCursor(Qt::BlankCursor); 
+
+        // Prepare mask image if empty
+        if (maskImage.isNull()) {
+            QSize imgSize = getCurrentFileDetails().baseImageSize;
+            maskImage = QImage(imgSize, QImage::Format_ARGB32);
+            maskImage.fill(Qt::transparent);
+            updateMaskItem();
+        }
+    } else {
+        setDragMode(QGraphicsView::ScrollHandDrag);
+        setMouseTracking(false);
+        viewport()->setCursor(Qt::ArrowCursor);
+        maskImage = QImage();
+        updateMaskItem();
+    }
+}
+
+void QVGraphicsView::paintOnMask(const QPointF &scenePos)
+{
+    if (maskImage.isNull() || !loadedPixmapItem)
+        return;
+
+    QPointF itemPos = loadedPixmapItem->mapFromScene(scenePos);
+
+    if (retouchTool == RetouchTool::Brush) {
+        QPainter painter(&maskImage);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(Qt::red);
+        painter.drawEllipse(itemPos, brushSize / currentScale, brushSize / currentScale);
+        painter.end();
+    } else if (retouchTool == RetouchTool::Lasso) {
+        lassoPolygon << itemPos;
+    }
+
+    updateMaskItem();
+}
+
+void QVGraphicsView::finalizeLasso()
+{
+    if (lassoPolygon.isEmpty()) return;
+
+    QPainter painter(&maskImage);
+    painter.setBrush(Qt::red);
+    painter.setPen(Qt::NoPen);
+    painter.drawPolygon(lassoPolygon);
+    painter.end();
+    
+    lassoPolygon.clear();
+    updateMaskItem();
+}
+
+void QVGraphicsView::updateMaskItem()
+{
+    if (maskItem) {
+        if (maskImage.isNull()) {
+            maskItem->setPixmap(QPixmap());
+        } else {
+            maskItem->setPixmap(QPixmap::fromImage(maskImage));
+        }
+    }
+}
+
+void QVGraphicsView::applyRetouch()
+{
+    if (maskImage.isNull() || !getCurrentFileDetails().isPixmapLoaded)
+        return;
+
+    // Save temporary images
+    QString tempDir = QDir::tempPath();
+    QString inputPath = tempDir + "/qview_retouch_in.png";
+    QString maskPath = tempDir + "/qview_retouch_mask.png";
+    QString outputPath = tempDir + "/qview_retouch_out.png";
+
+    // Save current image and mask
+    getLoadedPixmap().save(inputPath);
+    maskImage.save(maskPath);
+
+    // Call Python script
+    QString scriptPath = QCoreApplication::applicationDirPath() + "/scripts/retoucher.py";
+    // If running from build dir, check project root
+    if (!QFile::exists(scriptPath)) {
+        scriptPath = "g:/Code/IQView/scripts/retoucher.py";
+    }
+
+    QStringList arguments;
+    arguments << scriptPath << "--image" << inputPath << "--mask" << maskPath << "--output" << outputPath;
+
+    // Show wait cursor
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    QProcess *process = new QProcess(this);
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this, process, outputPath](int exitCode) {
+        QApplication::restoreOverrideCursor();
+        if (exitCode == 0) {
+            // Load the result
+            loadFile(outputPath);
+            // Exit retouch mode
+            toggleRetouchMode();
+        } else {
+            QString error = process->readAllStandardError();
+            if (error.isEmpty()) error = process->readAllStandardOutput();
+            QMessageBox::warning(this, tr("Retouch Error"), tr("Retouching failed:\n%1").arg(error));
+        }
+        process->deleteLater();
+    });
+
+    // Try 'python' then 'python3'
+    process->start("python", arguments);
+    if (!process->waitForStarted()) {
+        process->start("python3", arguments);
+        if (!process->waitForStarted()) {
+             QApplication::restoreOverrideCursor();
+             QMessageBox::critical(this, tr("Error"), tr("Could not start Python. Please ensure Python is installed and in your PATH."));
+             process->deleteLater();
+        }
+    }
+}
+
+void QVGraphicsView::changeBrushSize(int delta)
+{
+    brushSize = qBound(5, brushSize + delta, 500);
+    viewport()->update();
+}
+
+void QVGraphicsView::drawForeground(QPainter *painter, const QRectF &rect)
+{
+    Q_UNUSED(rect)
+    if (retouchTool != RetouchTool::Off) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        
+        if (retouchTool == RetouchTool::Brush) {
+            painter->setPen(QPen(Qt::white, 2 / currentScale));
+            painter->setBrush(QColor(255, 0, 0, 100)); // Semi-transparent red
+            painter->drawEllipse(lastMouseScenePos, brushSize / currentScale, brushSize / currentScale);
+        } else if (retouchTool == RetouchTool::Lasso) {
+            painter->setPen(QPen(Qt::white, 2 / currentScale, Qt::DashLine));
+            painter->setBrush(QColor(255, 0, 0, 50));
+            
+            // Map current mouse pos to scene for transient line
+            if (isDrawing && !lassoPolygon.isEmpty()) {
+                QPolygonF screenPolygon;
+                for (const QPointF &p : lassoPolygon)
+                    screenPolygon << loadedPixmapItem->mapToScene(p);
+                screenPolygon << lastMouseScenePos;
+                painter->drawPolygon(screenPolygon);
+            } else {
+                // Just a crosshair or something for lasso?
+                painter->setPen(QPen(Qt::white, 1 / currentScale));
+                painter->drawLine(lastMouseScenePos - QPointF(10 / currentScale, 0), lastMouseScenePos + QPointF(10 / currentScale, 0));
+                painter->drawLine(lastMouseScenePos - QPointF(0, 10 / currentScale), lastMouseScenePos + QPointF(0, 10 / currentScale));
+            }
+        }
+        painter->restore();
+    }
 }

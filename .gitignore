@@ -48,4 +48,9 @@ bin/*
 build/*
 
 *.qm
-.qm
+# AI Models
+scripts/*.onnx
+scripts/__pycache__/
+
+# AI Research & Documentation
+docs/

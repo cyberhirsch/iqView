@@ -1,28 +1,39 @@
-<h1 align=center>qView</h1>
+<h1 align=center>IQview</h1>
 
-<p align=center>qView is an image viewer designed with minimalism and usability in mind.</p>
+<p align=center>IQview is a powerful fork of <b>qView</b> that integrates local, GPU-accelerated AI tools for rapid image editing without sacrificing minimalism.</p>
 
 <h3 align=center>
-    <a href="https://interversehq.com/qview/">Visit the website</a>
+    Retouch | Object Removal | Local AI
 </h3>
-
-<h4 align=center>
-    <a href="https://interversehq.com/qview/download">Downloads</a> |
-    <a href="https://interversehq.com/qview/changelog">Changelog</a> | <a href="https://interversehq.com/discord">Discord</a>
-</h4>
-
-<p align=center>
-    <a href="https://interversehq.com/qview/download">
-        <img alt="Downloads shield" src="https://img.shields.io/github/downloads/jurplel/qview/total?color=blue&style=flat-square">
-    </a>
-    <a href="https://aur.archlinux.org/packages/qview/">
-        <img alt="AUR shield" src="https://img.shields.io/aur/version/qview?style=flat-square">
-    </a>
-    <a href="https://formulae.brew.sh/cask/qview">
-        <img alt="Homebrew cask shield" src="https://img.shields.io/homebrew/cask/v/qview?style=flat-square">
-    </a>
-</p>
 
 <p align=center>
     <img alt="Screenshot" src="https://interversehq.com/qview/assets/img/screenshot3.png">
 </p>
+
+## ✨ What is IQview?
+While original qView is a fantastic minimalist viewer, **IQview** expands it into a lightweight creative toolkit. 
+
+Featuring built-in **LaMa (Large Mask Inpainting)**, you can instantly removed distracting objects, text, or photobombers directly from the viewer using your **NVIDIA RTX 3090** or other CUDA-capable GPUs.
+
+## 🛠 AI Features
+- **Object Removal (R)**: Instantly mask and remove items.
+- **Multi-Tool Masking**: Switch between a **Brush** and a **Lasso** for precision.
+- **Zero Configuration**: AI models are downloaded automatically on the first run.
+- **Privacy First**: All AI processing happens locally on your machine—your photos never leave your computer.
+
+## 🎮 Shortcuts
+| Key | Action |
+| --- | --- |
+| **R** | Toggle Retouch Mode (Cycle: Brush -> Lasso -> Off) |
+| **Enter** | Apply Retouch / Confirm |
+| **Esc** | Cancel / Exit |
+| **Middle Click**| Apply Retouch (Quick Action) |
+| **Right Click** | Cancel Retouch (Quick Action) |
+| **[ / ]** | Adjust Brush Size |
+
+## Installation
+Requires **Python 3.10+** and `onnxruntime-gpu` for maximum performance.
+C++ code builds with **Qt 6 / CMake** on Windows, Linux, and macOS.
+
+---
+*Based on the original [qView](https://github.com/jurplel/qView) by Jurplel.*

@@ -112,6 +112,9 @@ public:
     void increaseSpeed();
 
     void toggleFullScreen();
+    void toggleRetouchMode();
+    void applyRetouch();
+    void changeBrushSize(int delta);
 
     int getTitlebarOverlap() const;
 

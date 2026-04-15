@@ -623,6 +623,16 @@ void ActionManager::actionTriggered(QAction *triggeredAction, MainWindow *releva
         relevantWindow->increaseSpeed();
     } else if (key == "slideshow") {
         relevantWindow->toggleSlideshow();
+    } else if (key == "retouch") {
+        relevantWindow->toggleRetouchMode();
+    } else if (key == "applyretouch") {
+        relevantWindow->applyRetouch();
+    } else if (key == "cancelretouch") {
+        relevantWindow->toggleRetouchMode();
+    } else if (key == "increasebrush") {
+        relevantWindow->changeBrushSize(5);
+    } else if (key == "decreasebrush") {
+        relevantWindow->changeBrushSize(-5);
     }
 }
 
@@ -798,6 +808,31 @@ void ActionManager::initializeActionLibrary()
             new QAction(QIcon::fromTheme("media-playback-start"), tr("Start S&lideshow"));
     slideshowAction->setData({ "disable" });
     actionLibrary.insert("slideshow", slideshowAction);
+
+    auto *retouchAction = new QAction(QIcon::fromTheme("edit-cut"), tr("&Retouch"));
+    retouchAction->setData({ "disable" });
+    retouchAction->setShortcut(QKeySequence(Qt::Key_R));
+    actionLibrary.insert("retouch", retouchAction);
+
+    auto *applyRetouchAction = new QAction(tr("Apply &Retouch"));
+    applyRetouchAction->setData({ "disable" });
+    applyRetouchAction->setShortcut(QKeySequence(Qt::Key_Return));
+    actionLibrary.insert("applyretouch", applyRetouchAction);
+
+    auto *cancelRetouchAction = new QAction(tr("Cancel Retouch"));
+    cancelRetouchAction->setData({ "disable" });
+    cancelRetouchAction->setShortcut(QKeySequence(Qt::Key_Escape));
+    actionLibrary.insert("cancelretouch", cancelRetouchAction);
+
+    auto *increaseBrushAction = new QAction(tr("Increase Brush Size"));
+    increaseBrushAction->setData({ "disable" });
+    increaseBrushAction->setShortcut(QKeySequence(Qt::Key_BracketRight));
+    actionLibrary.insert("increasebrush", increaseBrushAction);
+
+    auto *decreaseBrushAction = new QAction(tr("Decrease Brush Size"));
+    decreaseBrushAction->setData({ "disable" });
+    decreaseBrushAction->setShortcut(QKeySequence(Qt::Key_BracketLeft));
+    actionLibrary.insert("decreasebrush", decreaseBrushAction);
 
     //: This is for the options dialog on windows
     auto *optionsAction = new QAction(
