@@ -52,7 +52,8 @@ public:
         AllowMimeContentDetection,
         SaveRecents,
         UpdateNotifications,
-        SkipHidden
+        SkipHidden,
+        HFToken
     };
     Q_ENUM(Setting)
 
@@ -85,6 +86,7 @@ public:
     double getDouble(Setting setting, bool defaults = false) const;
     const QString getString(Setting setting, bool defaults = false) const;
     bool isDefault(Setting setting) const;
+    void setSetting(Setting setting, const QVariant &value);
 
     // Direct enum-based access to setting data
     const SettingData &getSettingData(Setting setting) const;

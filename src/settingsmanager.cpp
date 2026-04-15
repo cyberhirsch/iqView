@@ -56,7 +56,8 @@ static const SettingDefinition settingDefinitions[] = {
     { SettingsManager::Setting::AllowMimeContentDetection, false, "allowmimecontentdetection" },
     { SettingsManager::Setting::SaveRecents, true, "saverecents" },
     { SettingsManager::Setting::UpdateNotifications, false, "updatenotifications" },
-    { SettingsManager::Setting::SkipHidden, true, "skiphidden" }
+    { SettingsManager::Setting::SkipHidden, true, "skiphidden" },
+    { SettingsManager::Setting::HFToken, "", "hftoken" }
 };
 
 // settingKeys is a file-static variable, it doesn't need to be a member
@@ -258,6 +259,22 @@ bool SettingsManager::isDefault(Setting setting) const
 {
     const SettingData &data = getSettingData(setting);
     return data.value.isNull() || data.value == data.defaultValue;
+}
+
+void SettingsManager::setSetting(Setting setting, const QVariant &value)
+{
+    int index = static_cast<int>(setting);
+    if (index < 0 || index >= settingDataCache.size()) return;
+
+    if (settingDataCache[index].value != value) {
+        settingDataCache[index].value = value;
+        
+        QSettings settings;
+        settings.beginGroup("options");
+        settings.setValue(getSettingKey(setting), value);
+        
+        emit settingsUpdated();
+    }
 }
 
 void SettingsManager::initializeSettingDataCache()

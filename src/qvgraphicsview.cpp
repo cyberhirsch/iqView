@@ -1,5 +1,6 @@
 #include "qvgraphicsview.h"
 #include <QThread>
+#include "hfauthdialog.h"
 #include "qvapplication.h"
 #include "qvinfodialog.h"
 #include "qvcocoafunctions.h"
@@ -1128,4 +1129,44 @@ bool QVGraphicsView::undoRetouch()
     updateMaskItem();
     viewport()->update();
     return true;
+}
+
+bool QVGraphicsView::checkGenerativeAccess()
+{
+    QString token = qvGetSettingString(HFToken);
+    QString pythonPath = QDir(qApp->applicationDirPath()).filePath("scripts/.venv/Scripts/python.exe");
+    QString scriptPath = QDir(qApp->applicationDirPath()).filePath("scripts/flux_fill.py");
+
+    while (true) {
+        QProcess checkProcess;
+        QStringList args;
+        args << scriptPath << "--check_only" << "--model" << hfModelId;
+        if (!token.isEmpty()) {
+            args << "--token" << token;
+        }
+
+        checkProcess.start(pythonPath, args);
+        if (!checkProcess.waitForFinished(10000)) {
+            QMessageBox::critical(this, tr("AI Error"), tr("Timed out checking model access."));
+            return false;
+        }
+
+        QString output = QString::fromUtf8(checkProcess.readAllStandardOutput()).trimmed();
+        if (output == "ACCESS_GRANTED") {
+            return true;
+        } else if (output == "ACCESS_GATED") {
+            HFAuthDialog dialog(hfModelId, this);
+            if (dialog.exec() == QDialog::Accepted) {
+                token = dialog.getToken();
+                qvSetSetting(HFToken, token);
+                // Loop again to verify
+                continue;
+            } else {
+                return false;
+            }
+        } else {
+            QMessageBox::critical(this, tr("Access Error"), tr("An error occurred while checking access: %1").arg(output));
+            return false;
+        }
+    }
 }

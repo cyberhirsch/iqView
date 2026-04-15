@@ -28,6 +28,8 @@
     qvApp->getSettingsManager().getDouble(SettingsManager::Setting::setting)
 #define qvGetSettingString(setting) \
     qvApp->getSettingsManager().getString(SettingsManager::Setting::setting)
+#define qvSetSetting(setting, value) \
+    qvApp->getSettingsManager().setSetting(SettingsManager::Setting::setting, value)
 
 class QVApplication : public QApplication
 {

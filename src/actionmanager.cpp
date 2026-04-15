@@ -278,6 +278,8 @@ QMenu *ActionManager::buildToolsMenu(bool addIcon, QWidget *parent)
     toolsMenu->addSeparator();
     addCloneOfAction(toolsMenu, "slideshow");
     addCloneOfAction(toolsMenu, "options");
+    toolsMenu->addSeparator();
+    addCloneOfAction(toolsMenu, "fluxcheck");
 
     menuCloneLibrary.insert(toolsMenu->menuAction()->data().toString(), toolsMenu);
     return toolsMenu;
@@ -835,6 +837,12 @@ void ActionManager::initializeActionLibrary()
     decreaseBrushAction->setData({ "disable" });
     decreaseBrushAction->setShortcut(QKeySequence(Qt::Key_BracketLeft));
     actionLibrary.insert("decreasebrush", decreaseBrushAction);
+
+    auto *fluxCheckAction = new QAction(tr("Check Flux Access"), this);
+    connect(fluxCheckAction, &QAction::triggered, [this]() {
+        graphicsView->checkGenerativeAccess();
+    });
+    actionLibrary.insert("fluxcheck", fluxCheckAction);
 
     //: This is for the options dialog on windows
     auto *optionsAction = new QAction(

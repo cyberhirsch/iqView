@@ -167,5 +167,9 @@ private:
     void ensureWorkerStarted();
     void handleWorkerOutput();
     QString pendingOutputPath;
+
+    // Generative
+    bool checkGenerativeAccess();
+    QString hfModelId = "black-forest-labs/FLUX.1-schnell";
 };
 #endif // QVGRAPHICSVIEW_H
