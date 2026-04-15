@@ -170,6 +170,12 @@ private:
 
     // Generative
     bool checkGenerativeAccess();
+    void applyCreativeFill();
+    void ensureFluxStarted();
+    void handleFluxOutput();
+    
     QString hfModelId = "black-forest-labs/FLUX.1-schnell";
+    QProcess *fluxProcess = nullptr;
+    class RetouchPromptBar *promptBar = nullptr;
 };
 #endif // QVGRAPHICSVIEW_H

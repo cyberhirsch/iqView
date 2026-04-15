@@ -1,6 +1,7 @@
 #include "qvgraphicsview.h"
 #include <QThread>
 #include "hfauthdialog.h"
+#include "retouchpromptbar.h"
 #include "qvapplication.h"
 #include "qvinfodialog.h"
 #include "qvcocoafunctions.h"
@@ -74,6 +75,10 @@ QVGraphicsView::QVGraphicsView(QWidget *parent) : QGraphicsView(parent)
     connect(&qvApp->getSettingsManager(), &SettingsManager::settingsUpdated, this,
             &QVGraphicsView::settingsUpdated);
     settingsUpdated();
+
+    promptBar = new RetouchPromptBar(this);
+    promptBar->hide();
+    connect(promptBar, &RetouchPromptBar::generateRequested, this, &QVGraphicsView::applyCreativeFill);
 }
 
 // Events
@@ -875,8 +880,16 @@ void QVGraphicsView::toggleRetouchMode()
         }
 
         setDragMode(QGraphicsView::NoDrag);
-        setMouseTracking(true);
-        viewport()->setCursor(Qt::BlankCursor); 
+        viewport()->setCursor(Qt::CrossCursor);
+        ensureWorkerStarted();
+        
+        if (promptBar) {
+            promptBar->show();
+            int barWidth = qMin(600, width() - 40);
+            promptBar->setFixedWidth(barWidth);
+            promptBar->move((width() - barWidth) / 2, height() - promptBar->height() - 20);
+            promptBar->setFocusToPrompt();
+        }
 
         // Prepare mask image if empty or different size
         // Use the actual oriented pixmap size for the mask
@@ -898,6 +911,11 @@ void QVGraphicsView::toggleRetouchMode()
 
         if (qvGetSettingBool(ScalingEnabled) && !isOriginalSize) {
             expensiveScaleTimerNew->start();
+        }
+
+        if (promptBar) {
+            promptBar->hide();
+            promptBar->clear();
         }
     }
 }
@@ -1081,6 +1099,12 @@ void QVGraphicsView::changeBrushSize(int delta)
 {
     brushSize = qBound(5, brushSize + delta, 500);
     viewport()->update();
+    
+    if (promptBar && promptBar->isVisible()) {
+        int barWidth = qMin(600, width() - 40);
+        promptBar->setFixedWidth(barWidth);
+        promptBar->move((width() - barWidth) / 2, height() - promptBar->height() - 20);
+    }
 }
 
 void QVGraphicsView::drawForeground(QPainter *painter, const QRectF &rect)
@@ -1169,4 +1193,74 @@ bool QVGraphicsView::checkGenerativeAccess()
             return false;
         }
     }
+}
+
+void QVGraphicsView::ensureFluxStarted()
+{
+    if (fluxProcess && fluxProcess->state() == QProcess::Running)
+        return;
+
+    if (!fluxProcess) {
+        fluxProcess = new QProcess(this);
+        connect(fluxProcess, &QProcess::readyReadStandardOutput, this, &QVGraphicsView::handleFluxOutput);
+    }
+
+    QString pythonPath = QDir(qApp->applicationDirPath()).filePath("scripts/.venv/Scripts/python.exe");
+    QString scriptPath = QDir(qApp->applicationDirPath()).filePath("scripts/flux_fill.py");
+    QString token = qvGetSettingString(HFToken);
+
+    QStringList args;
+    args << scriptPath << "--model" << hfModelId;
+    if (!token.isEmpty())
+        args << "--token" << token;
+
+    fluxProcess->start(pythonPath, args);
+}
+
+void QVGraphicsView::handleFluxOutput()
+{
+    while (fluxProcess->canReadLine()) {
+        QString line = QString::fromUtf8(fluxProcess->readLine()).trimmed();
+        if (line.startsWith("OUTPUT: ")) {
+            QString outPath = line.mid(8);
+            QPixmap result(outPath);
+            if (!result.isNull()) {
+                undoPixmap = loadedPixmapItem->pixmap();
+                loadedPixmapItem->setPixmap(result);
+                viewport()->setCursor(Qt::CrossCursor);
+            }
+        }
+    }
+}
+
+void QVGraphicsView::applyCreativeFill()
+{
+    if (retouchTool == RetouchTool::Off || !loadedPixmapItem)
+        return;
+
+    // First ensure access
+    if (qvGetSettingString(HFToken).isEmpty()) {
+        if (!checkGenerativeAccess()) return;
+    }
+
+    ensureFluxStarted();
+
+    QString prompt = promptBar->prompt();
+    if (prompt.isEmpty()) return;
+
+    // Create mask image from the maskImage ARGB32
+    QImage mask = maskImage.convertToFormat(QImage::Format_Grayscale8);
+
+    QString tempDir = QDir::tempPath();
+    QString inputPath = QDir(tempDir).filePath("iqview_flux_in.bmp");
+    QString maskPath = QDir(tempDir).filePath("iqview_flux_mask.bmp");
+    QString outputPath = QDir(tempDir).filePath("iqview_flux_out.bmp");
+
+    loadedPixmapItem->pixmap().save(inputPath);
+    mask.save(maskPath);
+
+    viewport()->setCursor(Qt::WaitCursor);
+
+    QString cmd = QString("%1|%2|%3|%4\n").arg(inputPath, maskPath, prompt, outputPath);
+    fluxProcess->write(cmd.toUtf8());
 }
