@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(qView VERSION 7.0 LANGUAGES CXX)
+project(iqView VERSION 7.0 LANGUAGES CXX)
 
 # Optional test building
 option(BUILD_TESTS "Build tests" OFF)
@@ -143,7 +143,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT
 
 # Set the executable name to lowercase on Linux
 if(UNIX AND NOT APPLE)
-    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "qview")
+    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "iqview")
 endif()
 
 # Add compile definitions based on options

@@ -59,9 +59,9 @@ QVAboutDialog::QVAboutDialog(double givenLatestVersionNum, QWidget *parent)
     font4.setStyleName("Regular");
     const QString labelText2 =
             tr("Built with Qt %1 (%2)<br>"
-               R"(Source code available under GPLv3 on <a style="color: #03A9F4; text-decoration:none;" href="https://github.com/jurplel/qView">GitHub</a><br>)"
+               R"(Source code available under GPLv3 on <a style="color: #03A9F4; text-decoration:none;" href="https://github.com/cyberhirsch/iqView">GitHub</a><br>)"
                "Icon glyph created by Guilhem from the Noun Project<br>"
-               "Copyright © %3 jurplel and qView contributors")
+               "Copyright © %3 jurplel and iqView contributors")
                     .arg(QT_VERSION_STR, QSysInfo::buildCpuArchitecture(), "2018-2025");
 
     ui->infoLabel2->setFont(font4);
@@ -103,7 +103,7 @@ void QVAboutDialog::updateText()
 #endif // QV_DISABLE_ONLINE_VERSION_CHECK
     ui->updateLabel->setText(
             updateText
-            + R"(<a style="color: #03A9F4; text-decoration:none;" href="https://interversehq.com/qview/">interversehq.com/qview</a>)");
+            + R"(<a style="color: #03A9F4; text-decoration:none;" href="https://github.com/cyberhirsch/iqView">github.com/cyberhirsch/iqView</a>)");
 }
 
 double QVAboutDialog::getLatestVersionNum() const

@@ -1,6 +1,6 @@
-<h1 align=center>IQview</h1>
+<h1 align=center>iqView</h1>
 
-<p align=center>IQview is a powerful fork of <b>qView</b> that integrates local, GPU-accelerated AI tools for rapid image editing without sacrificing minimalism.</p>
+<p align=center>iqView is a powerful fork of <b>qView</b> that integrates local, GPU-accelerated AI tools for rapid image editing without sacrificing minimalism.</p>
 
 <h3 align=center>
     Retouch | Object Removal | Local AI
@@ -10,8 +10,8 @@
     <img alt="Screenshot" src="https://interversehq.com/qview/assets/img/screenshot3.png">
 </p>
 
-## ✨ What is IQview?
-While original qView is a fantastic minimalist viewer, **IQview** expands it into a lightweight creative toolkit. 
+## ✨ What is iqView?
+While original qView is a fantastic minimalist viewer, **iqView** expands it into a lightweight creative toolkit. 
 
 Featuring built-in **LaMa (Large Mask Inpainting)**, you can instantly removed distracting objects, text, or photobombers directly from the viewer using your **NVIDIA RTX 3090** or other CUDA-capable GPUs.
 
