@@ -2,11 +2,14 @@
 #include "ui_qvoptionsdialog.h"
 #include "qvapplication.h"
 #include <QColorDialog>
+#include <QFileDialog>
 #include <QPalette>
 #include <QScreen>
 #include <QMessageBox>
 #include <QSettings>
 #include <QKeySequence>
+#include <QStandardPaths>
+#include <QPushButton>
 
 #include <QDebug>
 
@@ -242,6 +245,66 @@ void QVOptionsDialog::syncSettings(bool defaults, bool makeConnections)
     syncCheckbox(ui->updateCheckbox, "updatenotifications", defaults, makeConnections);
     // skiphidden
     syncCheckbox(ui->skipHiddenCheckbox, "skiphidden", defaults, makeConnections);
+    // --- AI: Retouch ---
+    const QString modelsDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/models";
+    syncPathLineEdit(ui->lamaModelLineEdit, "lamamodelpath",
+                     modelsDir + "/big-lama.onnx", defaults, makeConnections);
+    if (makeConnections) {
+        connect(ui->lamaModelBrowseButton, &QPushButton::clicked, this, [this]() {
+            const QString path = QFileDialog::getOpenFileName(
+                this, tr("Select LaMa Model"), ui->lamaModelLineEdit->text(),
+                tr("ONNX Model (*.onnx);;All files (*)"));
+            if (!path.isEmpty()) { ui->lamaModelLineEdit->setText(path); modifySetting("lamamodelpath", path); }
+        });
+    }
+    // --- AI: Generate — Model Files ---
+    syncPathLineEdit(ui->fluxTransformerLineEdit, "fluxtransformerpath",
+                     modelsDir + "/flux-2-klein-9b-fp8.safetensors", defaults, makeConnections);
+    if (makeConnections) {
+        connect(ui->fluxTransformerBrowseButton, &QPushButton::clicked, this, [this]() {
+            const QString path = QFileDialog::getOpenFileName(
+                this, tr("Select Transformer Model"), ui->fluxTransformerLineEdit->text(),
+                tr("Safetensors (*.safetensors);;All files (*)"));
+            if (!path.isEmpty()) { ui->fluxTransformerLineEdit->setText(path); modifySetting("fluxtransformerpath", path); }
+        });
+    }
+    syncPathLineEdit(ui->fluxVaePathLineEdit, "fluxvaepath",
+                     modelsDir + "/flux2-vae.safetensors", defaults, makeConnections);
+    if (makeConnections) {
+        connect(ui->fluxVaeBrowseButton, &QPushButton::clicked, this, [this]() {
+            const QString path = QFileDialog::getOpenFileName(
+                this, tr("Select VAE Model"), ui->fluxVaePathLineEdit->text(),
+                tr("Safetensors (*.safetensors);;All files (*)"));
+            if (!path.isEmpty()) { ui->fluxVaePathLineEdit->setText(path); modifySetting("fluxvaepath", path); }
+        });
+    }
+    syncPathLineEdit(ui->fluxTextEncPathLineEdit, "fluxtextencpath",
+                     modelsDir + "/qwen_3_4b.safetensors", defaults, makeConnections);
+    if (makeConnections) {
+        connect(ui->fluxTextEncBrowseButton, &QPushButton::clicked, this, [this]() {
+            const QString path = QFileDialog::getOpenFileName(
+                this, tr("Select Text Encoder"), ui->fluxTextEncPathLineEdit->text(),
+                tr("Safetensors (*.safetensors);;All files (*)"));
+            if (!path.isEmpty()) { ui->fluxTextEncPathLineEdit->setText(path); modifySetting("fluxtextencpath", path); }
+        });
+    }
+    // --- AI: Generate — Sources ---
+    syncRadioButtons({ui->fluxDistilledRadio, ui->fluxBaseRadio}, "hfusebasemodel", defaults, makeConnections);
+    syncLineEdit(ui->hfModelIdLineEdit, "hfmodelid", defaults, makeConnections);
+    syncLineEdit(ui->hfVaeLineEdit, "hfvaefile", defaults, makeConnections);
+    syncLineEdit(ui->hfTextEncLineEdit, "hftextencfile", defaults, makeConnections);
+    syncLineEdit(ui->hfBaseRepoLineEdit, "hfbaserepo", defaults, makeConnections);
+    // --- AI: Authentication ---
+    syncLineEdit(ui->hfTokenLineEdit, "hftoken", defaults, makeConnections);
+    ui->hfTokenShowButton->setChecked(false);
+    ui->hfTokenShowButton->setText(tr("Show"));
+    ui->hfTokenLineEdit->setEchoMode(QLineEdit::Password);
+    if (makeConnections) {
+        connect(ui->hfTokenShowButton, &QPushButton::toggled, this, [this](bool checked) {
+            ui->hfTokenLineEdit->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+            ui->hfTokenShowButton->setText(checked ? tr("Hide") : tr("Show"));
+        });
+    }
 }
 
 void QVOptionsDialog::syncCheckbox(QCheckBox *checkbox, const QString &key, bool defaults,
@@ -324,6 +387,31 @@ void QVOptionsDialog::syncDoubleSpinBox(QDoubleSpinBox *doubleSpinBox, const QSt
     if (makeConnection) {
         connect(doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
                 [this, key](double arg1) { modifySetting(key, arg1); });
+    }
+}
+
+void QVOptionsDialog::syncLineEdit(QLineEdit *lineEdit, const QString &key, bool defaults,
+                                   bool makeConnection)
+{
+    auto val = qvApp->getSettingsManager().getString(key, defaults);
+    lineEdit->setText(val);
+    transientSettings.insert(key, val);
+
+    if (makeConnection) {
+        connect(lineEdit, &QLineEdit::textChanged, this,
+                [this, key](const QString &text) { modifySetting(key, text); });
+    }
+}
+
+void QVOptionsDialog::syncPathLineEdit(QLineEdit *lineEdit, const QString &key,
+                                       const QString &defaultPath,
+                                       bool defaults, bool makeConnection)
+{
+    syncLineEdit(lineEdit, key, defaults, makeConnection);
+    // If empty (never set), populate with the computed default and queue it for saving
+    if (lineEdit->text().isEmpty()) {
+        lineEdit->setText(defaultPath);
+        modifySetting(key, defaultPath);
     }
 }
 
@@ -507,6 +595,7 @@ void QVOptionsDialog::populateCategories(int selectedRow)
     addItem(u'\ue3f4', tr("Image"));
     addItem(u'\ue429', tr("Miscellaneous"));
     addItem(u'\ue312', tr("Shortcuts"));
+    addItem(u'\ue663', tr("AI"));
     ui->categoryList->setCurrentRow(selectedRow);
     ui->categoryList->setFixedWidth(ui->categoryList->sizeHintForColumn(0) + ui->categoryList->frameWidth() + listRightPadding);
 }

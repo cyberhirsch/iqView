@@ -63,6 +63,9 @@ set(PROJECT_SOURCES
     src/actionmanager.cpp
     src/settingsmanager.cpp
     src/shortcutmanager.cpp
+    src/hfauthdialog.cpp
+    src/retouchpromptbar.cpp
+    src/isolatedialog.cpp
 )
 
 # Header files
@@ -81,6 +84,9 @@ set(PROJECT_HEADERS
     src/actionmanager.h
     src/settingsmanager.h
     src/shortcutmanager.h
+    src/hfauthdialog.h
+    src/retouchpromptbar.h
+    src/isolatedialog.h
 )
 
 # UI form files

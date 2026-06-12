@@ -53,7 +53,16 @@ public:
         SaveRecents,
         UpdateNotifications,
         SkipHidden,
-        HFToken
+        HFToken,
+        HFModelId,
+        HFVaeFile,
+        HFTextEncoderFile,
+        HFBaseRepo,
+        HFUseBaseModel,
+        LamaModelPath,
+        FluxTransformerPath,
+        FluxVaePath,
+        FluxTextEncPath
     };
     Q_ENUM(Setting)
 

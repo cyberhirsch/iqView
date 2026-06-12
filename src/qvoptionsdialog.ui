@@ -1047,6 +1047,223 @@
          </item>
         </layout>
        </widget>
+       <widget class="QWidget" name="ai">
+        <layout class="QVBoxLayout" name="aiOuterLayout">
+         <property name="leftMargin"><number>10</number></property>
+         <property name="topMargin"><number>10</number></property>
+         <property name="rightMargin"><number>10</number></property>
+         <property name="bottomMargin"><number>10</number></property>
+         <item>
+          <widget class="QGroupBox" name="retouchGroupBox">
+           <property name="title"><string>Retouch</string></property>
+           <layout class="QFormLayout" name="retouchFormLayout">
+            <property name="fieldGrowthPolicy"><enum>QFormLayout::ExpandingFieldsGrow</enum></property>
+            <item row="0" column="0">
+             <widget class="QLabel" name="lamaModelLabel">
+              <property name="text"><string>LaMa Model:</string></property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="lamaModelRow">
+              <item>
+               <widget class="QLineEdit" name="lamaModelLineEdit">
+                <property name="placeholderText"><string>Default: AppData/Local/models/big-lama.onnx</string></property>
+                <property name="toolTip"><string>Local path to the LaMa ONNX model file. Leave empty to use the computed default.</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="lamaModelBrowseButton">
+                <property name="text"><string>Browse</string></property>
+                <property name="autoDefault"><bool>false</bool></property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="generateModelFilesGroupBox">
+           <property name="title"><string>Generate — Model Files</string></property>
+           <layout class="QFormLayout" name="generateModelFilesFormLayout">
+            <property name="fieldGrowthPolicy"><enum>QFormLayout::ExpandingFieldsGrow</enum></property>
+            <item row="0" column="0">
+             <widget class="QLabel" name="fluxTransformerLabel">
+              <property name="text"><string>Transformer:</string></property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="fluxTransformerRow">
+              <item>
+               <widget class="QLineEdit" name="fluxTransformerLineEdit">
+                <property name="placeholderText"><string>Default: AppData/Local/models/flux-2-klein-9b-fp8.safetensors</string></property>
+                <property name="toolTip"><string>Local path to the FLUX transformer safetensors file.</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="fluxTransformerBrowseButton">
+                <property name="text"><string>Browse</string></property>
+                <property name="autoDefault"><bool>false</bool></property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="fluxVaePathLabel">
+              <property name="text"><string>VAE:</string></property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <layout class="QHBoxLayout" name="fluxVaePathRow">
+              <item>
+               <widget class="QLineEdit" name="fluxVaePathLineEdit">
+                <property name="placeholderText"><string>Default: AppData/Local/models/flux2-vae.safetensors</string></property>
+                <property name="toolTip"><string>Local path to the FLUX VAE safetensors file.</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="fluxVaeBrowseButton">
+                <property name="text"><string>Browse</string></property>
+                <property name="autoDefault"><bool>false</bool></property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="fluxTextEncPathLabel">
+              <property name="text"><string>Text Encoder:</string></property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <layout class="QHBoxLayout" name="fluxTextEncPathRow">
+              <item>
+               <widget class="QLineEdit" name="fluxTextEncPathLineEdit">
+                <property name="placeholderText"><string>Default: AppData/Local/models/qwen_3_4b.safetensors</string></property>
+                <property name="toolTip"><string>Local path to the text encoder safetensors file.</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="fluxTextEncBrowseButton">
+                <property name="text"><string>Browse</string></property>
+                <property name="autoDefault"><bool>false</bool></property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="generateSourcesGroupBox">
+           <property name="title"><string>Generate — Sources</string></property>
+           <layout class="QFormLayout" name="generateSourcesFormLayout">
+            <property name="fieldGrowthPolicy"><enum>QFormLayout::ExpandingFieldsGrow</enum></property>
+            <item row="0" column="0">
+             <widget class="QLabel" name="fluxVariantLabel">
+              <property name="text"><string>Model variant:</string></property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="fluxVariantRow">
+              <item>
+               <widget class="QRadioButton" name="fluxDistilledRadio">
+                <property name="text"><string>Distilled — 4 steps, fast (~10s)</string></property>
+                <property name="checked"><bool>true</bool></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="fluxBaseRadio">
+                <property name="text"><string>Base — 50 steps, better quality (~2 min)</string></property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="hfModelIdLabel">
+              <property name="text"><string>HF Model ID:</string></property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLineEdit" name="hfModelIdLineEdit">
+              <property name="placeholderText"><string>black-forest-labs/FLUX.2-klein-4B</string></property>
+              <property name="toolTip"><string>Hugging Face repo ID of the model (leave blank to use the default for the selected variant above).</string></property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="hfVaeLabel">
+              <property name="text"><string>HF VAE Path:</string></property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLineEdit" name="hfVaeLineEdit">
+              <property name="placeholderText"><string>owner/repo/path/to/vae.safetensors</string></property>
+              <property name="toolTip"><string>Hugging Face path to the VAE safetensors file (repo/filename). Used for FLUX.2-klein models.</string></property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="hfTextEncLabel">
+              <property name="text"><string>HF Text Encoder:</string></property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QLineEdit" name="hfTextEncLineEdit">
+              <property name="placeholderText"><string>owner/repo/path/to/text_encoder.safetensors</string></property>
+              <property name="toolTip"><string>Hugging Face path to the text encoder safetensors file (repo/filename). Used for FLUX.2-klein models.</string></property>
+             </widget>
+            </item>
+            <item row="4" column="0">
+             <widget class="QLabel" name="hfBaseRepoLabel">
+              <property name="text"><string>HF Base Repo:</string></property>
+             </widget>
+            </item>
+            <item row="4" column="1">
+             <widget class="QLineEdit" name="hfBaseRepoLineEdit">
+              <property name="placeholderText"><string>black-forest-labs/FLUX.2-klein-9B</string></property>
+              <property name="toolTip"><string>BF16 base repo providing the pipeline class, tokenizer and scheduler. Only needed for FLUX.2-klein models.</string></property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="hfAuthGroupBox">
+           <property name="title"><string>Hugging Face Authentication</string></property>
+           <layout class="QFormLayout" name="hfAuthFormLayout">
+            <property name="fieldGrowthPolicy"><enum>QFormLayout::ExpandingFieldsGrow</enum></property>
+            <item row="0" column="0">
+             <widget class="QLabel" name="hfTokenLabel">
+              <property name="text"><string>Token:</string></property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="hfTokenRow">
+              <item>
+               <widget class="QLineEdit" name="hfTokenLineEdit">
+                <property name="echoMode"><enum>QLineEdit::Password</enum></property>
+                <property name="placeholderText"><string>hf_...</string></property>
+                <property name="toolTip"><string>Hugging Face access token for gated models. Required for black-forest-labs models.</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="hfTokenShowButton">
+                <property name="text"><string>Show</string></property>
+                <property name="checkable"><bool>true</bool></property>
+                <property name="autoDefault"><bool>false</bool></property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <spacer name="aiBottomSpacer">
+           <property name="orientation"><enum>Qt::Vertical</enum></property>
+           <property name="sizeHint" stdset="0"><size><width>0</width><height>0</height></size></property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
       </widget>
      </item>
     </layout>

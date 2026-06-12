@@ -6,6 +6,7 @@
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QGraphicsDropShadowEffect>
+#include <QEvent>
 
 class RetouchPromptBar : public QWidget {
     Q_OBJECT
@@ -65,7 +66,17 @@ public:
     
     QString prompt() const { return promptEdit->text(); }
     void clear() { promptEdit->clear(); }
-    void setFocusToPrompt() { promptEdit->setFocus(); }
+    void setFocusToPrompt() { promptEdit->setFocus(Qt::OtherFocusReason); }
+
+protected:
+    bool event(QEvent *e) override {
+        // Absorb ShortcutOverride so window-level shortcuts don't fire while typing
+        if (e->type() == QEvent::ShortcutOverride && promptEdit->hasFocus()) {
+            e->accept();
+            return true;
+        }
+        return QWidget::event(e);
+    }
 
 signals:
     void generateRequested();

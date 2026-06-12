@@ -1,4 +1,5 @@
 #include "qvgraphicsview.h"
+#include "isolatedialog.h"
 #include <QThread>
 #include "hfauthdialog.h"
 #include "retouchpromptbar.h"
@@ -18,9 +19,13 @@
 #include <QApplication>
 #include <QProcess>
 #include <QDir>
+#include <QStandardPaths>
+#include <QDateTime>
 #include <QCoreApplication>
 #include <QPainter>
 #include <QPen>
+#include <QProgressDialog>
+#include <QEventLoop>
 
 QVGraphicsView::QVGraphicsView(QWidget *parent) : QGraphicsView(parent)
 {
@@ -90,6 +95,9 @@ void QVGraphicsView::resizeEvent(QResizeEvent *event)
         resetScale();
     else
         centerOn(loadedPixmapItem);
+    if (promptBar && promptBar->isVisible())
+        repositionPromptBar();
+    repositionAiStatus();
 }
 
 void QVGraphicsView::dropEvent(QDropEvent *event)
@@ -192,11 +200,7 @@ void QVGraphicsView::mousePressEvent(QMouseEvent *event)
             applyRetouch();
             return;
         } else if (event->button() == Qt::RightButton) {
-            // Cancel/Exit if in retouch mode
-            toggleRetouchMode();
-            retouchTool = RetouchTool::Off; // Force off if right click 
-            // Wait, maybe right click should just exit the mode?
-            // "cancel with right mouse button"
+            exitRetouchMode();
             return;
         }
     }
@@ -222,12 +226,9 @@ void QVGraphicsView::mouseMoveEvent(QMouseEvent *event)
 
     lastMouseScenePos = mapToScene(event->pos());
 
-    if (retouchTool != RetouchTool::Off && isDrawing) {
-        paintOnMask(lastMouseScenePos);
-        return;
-    }
-
     if (retouchTool != RetouchTool::Off) {
+        if (isDrawing)
+            paintOnMask(lastMouseScenePos);
         viewport()->update();
         return;
     }
@@ -867,10 +868,10 @@ void QVGraphicsView::toggleRetouchMode()
     if (!getCurrentFileDetails().isPixmapLoaded)
         return;
 
-    // Cycle: Off -> Brush -> Lasso -> Off
+    // Off → Brush; Brush ↔ Lasso (Esc exits, Enter applies)
     if (retouchTool == RetouchTool::Off) retouchTool = RetouchTool::Brush;
     else if (retouchTool == RetouchTool::Brush) retouchTool = RetouchTool::Lasso;
-    else retouchTool = RetouchTool::Off;
+    else retouchTool = RetouchTool::Brush;
 
     if (retouchTool != RetouchTool::Off) {
         // Prevent scaling while editing so mask coordinates map correctly to full res
@@ -880,15 +881,13 @@ void QVGraphicsView::toggleRetouchMode()
         }
 
         setDragMode(QGraphicsView::NoDrag);
+        setMouseTracking(true);
+        viewport()->setMouseTracking(true);
         viewport()->setCursor(Qt::CrossCursor);
-        ensureWorkerStarted();
-        
+
         if (promptBar) {
-            promptBar->show();
-            int barWidth = qMin(600, width() - 40);
-            promptBar->setFixedWidth(barWidth);
-            promptBar->move((width() - barWidth) / 2, height() - promptBar->height() - 20);
-            promptBar->setFocusToPrompt();
+            promptBar->hide();
+            promptBar->clear();
         }
 
         // Prepare mask image if empty or different size
@@ -897,26 +896,34 @@ void QVGraphicsView::toggleRetouchMode()
         if (maskImage.size() != actualSize || maskImage.isNull()) {
             maskImage = QImage(actualSize, QImage::Format_ARGB32);
             maskImage.fill(Qt::transparent);
+            maskHasPaint = false;
             updateMaskItem();
         }
-        
+
         // Eagerly start the AI worker so it's warm by the time the user clicks 'Apply'
         ensureWorkerStarted();
     } else {
-        setDragMode(QGraphicsView::ScrollHandDrag);
-        setMouseTracking(false);
-        viewport()->setCursor(Qt::ArrowCursor);
-        maskImage = QImage();
-        updateMaskItem();
+        exitRetouchMode();
+    }
+}
 
-        if (qvGetSettingBool(ScalingEnabled) && !isOriginalSize) {
-            expensiveScaleTimerNew->start();
-        }
+void QVGraphicsView::exitRetouchMode()
+{
+    retouchTool = RetouchTool::Off;
+    setDragMode(QGraphicsView::ScrollHandDrag);
+    setMouseTracking(false);
+    viewport()->setCursor(Qt::ArrowCursor);
+    maskImage = QImage();
+    maskHasPaint = false;
+    updateMaskItem();
 
-        if (promptBar) {
-            promptBar->hide();
-            promptBar->clear();
-        }
+    if (qvGetSettingBool(ScalingEnabled) && !isOriginalSize) {
+        expensiveScaleTimerNew->start();
+    }
+
+    if (promptBar) {
+        promptBar->hide();
+        promptBar->clear();
     }
 }
 
@@ -939,6 +946,7 @@ void QVGraphicsView::paintOnMask(const QPointF &scenePos)
         painter.setBrush(Qt::red);
         painter.drawEllipse(itemPos, brushSize / viewScale, brushSize / viewScale);
         painter.end();
+        maskHasPaint = true;
     } else if (retouchTool == RetouchTool::Lasso) {
         lassoPolygon << itemPos;
     }
@@ -957,6 +965,7 @@ void QVGraphicsView::finalizeLasso()
     painter.end();
     
     lassoPolygon.clear();
+    maskHasPaint = true;
     updateMaskItem();
 }
 
@@ -972,23 +981,48 @@ void QVGraphicsView::updateMaskItem()
     }
 }
 
+QString QVGraphicsView::resolveLogPath()
+{
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+               .absoluteFilePath("flux.log");
+}
+
+QString QVGraphicsView::resolveModelsDir()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/models";
+}
+
+QString QVGraphicsView::resolveScriptsDir()
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    for (const QString &candidate : {
+             appDir + "/scripts",
+             appDir + "/../../scripts",
+             appDir + "/../scripts"
+         }) {
+        if (QFileInfo(candidate + "/flux_fill.py").exists())
+            return QDir(candidate).absolutePath();
+    }
+    return appDir + "/scripts";
+}
+
+QString QVGraphicsView::resolvePythonExe()
+{
+    const QString venv = resolveScriptsDir() + "/.venv";
+#ifdef Q_OS_WIN
+    return venv + "/Scripts/python.exe";
+#else
+    return venv + "/bin/python";
+#endif
+}
+
 void QVGraphicsView::applyRetouch()
 {
     if (maskImage.isNull() || !getCurrentFileDetails().isPixmapLoaded)
         return;
 
-    // 1. Ensure Python environment is ready
-    QString scriptsDir = QCoreApplication::applicationDirPath() + "/scripts";
-    // Check project root if running from build
-    if (!QDir(scriptsDir).exists()) {
-        scriptsDir = "g:/Code/IQView/scripts";
-    }
-    
-    QString venvPath = scriptsDir + "/.venv";
-    QString pythonExe = venvPath + "/Scripts/python.exe"; // Windows path
-#ifndef Q_OS_WIN
-    pythonExe = venvPath + "/bin/python"; // Linux/macOS
-#endif
+    const QString scriptsDir = resolveScriptsDir();
+    const QString pythonExe  = resolvePythonExe();
 
     if (!QFile::exists(pythonExe)) {
         int ret = QMessageBox::information(this, tr("AI Setup"), 
@@ -1032,23 +1066,27 @@ void QVGraphicsView::applyRetouch()
     maskImage.save(maskPath, "BMP");
 
     pendingOutputPath = outputPath;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     ensureWorkerStarted();
 
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    
-    // Silent Wait: If the worker is still loading, wait up to 20s for the READY signal
-    // without showing a popup. The mouse cursor will indicate work is happening.
-    int retries = 0;
-    while (!isWorkerReady && retries < 200) { // 200 * 100ms = 20s
-        QCoreApplication::processEvents();
-        if (isWorkerReady) break;
-        QThread::msleep(100);
-        retries++;
+    if (!isWorkerReady) {
+        QEventLoop loop;
+        QTimer timeout;
+        timeout.setSingleShot(true);
+        connect(workerProcess, &QProcess::readyReadStandardOutput, &loop, [&]() {
+            handleWorkerOutput();
+            if (isWorkerReady) loop.quit();
+        });
+        // Also quit if the process exits unexpectedly (crash / missing interpreter)
+        connect(workerProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                &loop, &QEventLoop::quit);
+        connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+        timeout.start(600000); // 10 min — first-run download of big-lama.onnx (~200 MB)
+        loop.exec();
     }
 
     if (isWorkerReady) {
-        QString command = QString("%1|%2|%3\n").arg(inputPath, maskPath, outputPath);
-        workerProcess->write(command.toUtf8());
+        workerProcess->write(QString("%1|%2|%3\n").arg(inputPath, maskPath, outputPath).toUtf8());
     } else {
         QApplication::restoreOverrideCursor();
         QMessageBox::critical(this, tr("AI Error"), tr("The AI service failed to start in time."));
@@ -1059,21 +1097,17 @@ void QVGraphicsView::ensureWorkerStarted()
 {
     if (workerProcess && workerProcess->state() == QProcess::Running) return;
 
-    QString scriptsDir = QCoreApplication::applicationDirPath() + "/scripts";
-    if (!QDir(scriptsDir).exists()) scriptsDir = "g:/Code/IQView/scripts";
-    
-    QString venvPath = scriptsDir + "/.venv";
-    QString pythonExe = venvPath + "/Scripts/python.exe";
-#ifndef Q_OS_WIN
-    pythonExe = venvPath + "/bin/python";
-#endif
-
     isWorkerReady = false;
     if (workerProcess) workerProcess->deleteLater();
-    
+
     workerProcess = new QProcess(this);
     connect(workerProcess, &QProcess::readyReadStandardOutput, this, &QVGraphicsView::handleWorkerOutput);
-    workerProcess->start(pythonExe, QStringList() << scriptsDir + "/worker.py");
+    QStringList workerArgs = { resolveScriptsDir() + "/worker.py" };
+    QString lamaPath = qvGetSettingString(LamaModelPath);
+    if (lamaPath.isEmpty())
+        lamaPath = resolveModelsDir() + "/big-lama.onnx";
+    workerArgs << "--model" << lamaPath;
+    workerProcess->start(resolvePythonExe(), workerArgs);
 }
 
 void QVGraphicsView::handleWorkerOutput()
@@ -1082,29 +1116,77 @@ void QVGraphicsView::handleWorkerOutput()
         QString line = QString::fromUtf8(workerProcess->readLine()).trimmed();
         if (line == "READY") {
             isWorkerReady = true;
+            hideAiStatus();
         } else if (line == "DONE") {
+            hideAiStatus();
             QApplication::restoreOverrideCursor();
             loadFile(pendingOutputPath);
-            // Toggle retouch mode off on success
-            retouchTool = RetouchTool::Lasso; // Setup for the toggle to hit Off
-            toggleRetouchMode();
+            exitRetouchMode();
+        } else if (line.startsWith("STATUS: ")) {
+            showAiStatus(line.mid(8));
         } else if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
+            hideAiStatus();
             QApplication::restoreOverrideCursor();
             QMessageBox::warning(this, tr("Retouch Error"), line);
         }
     }
 }
 
+void QVGraphicsView::repositionPromptBar()
+{
+    if (!promptBar) return;
+    const int barWidth = qMin(600, width() - 40);
+    promptBar->setFixedWidth(barWidth);
+    promptBar->move((width() - barWidth) / 2, height() - promptBar->height() - 20);
+    repositionAiStatus(); // keep status label above prompt bar
+}
+
+void QVGraphicsView::showAiStatus(const QString &text)
+{
+    if (!aiStatusLabel) {
+        aiStatusLabel = new QLabel(this);
+        aiStatusLabel->setAlignment(Qt::AlignCenter);
+        aiStatusLabel->setStyleSheet(
+            "QLabel {"
+            "  background: rgba(20, 20, 20, 210);"
+            "  color: #e0e0e0;"
+            "  border: 1px solid rgba(120, 120, 120, 130);"
+            "  border-radius: 8px;"
+            "  padding: 7px 18px;"
+            "  font-size: 13px;"
+            "}"
+        );
+        aiStatusLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+    aiStatusLabel->setText(text);
+    aiStatusLabel->adjustSize();
+    repositionAiStatus();
+    aiStatusLabel->show();
+    aiStatusLabel->raise();
+}
+
+void QVGraphicsView::hideAiStatus()
+{
+    if (aiStatusLabel)
+        aiStatusLabel->hide();
+}
+
+void QVGraphicsView::repositionAiStatus()
+{
+    if (!aiStatusLabel || !aiStatusLabel->isVisible()) return;
+    aiStatusLabel->adjustSize();
+    const int x = (width() - aiStatusLabel->width()) / 2;
+    // Sit above the prompt bar if visible, otherwise 24px from the bottom
+    const int bottomAnchor = (promptBar && promptBar->isVisible())
+                             ? promptBar->y() - 8
+                             : height() - 24;
+    aiStatusLabel->move(x, bottomAnchor - aiStatusLabel->height());
+}
+
 void QVGraphicsView::changeBrushSize(int delta)
 {
     brushSize = qBound(5, brushSize + delta, 500);
     viewport()->update();
-    
-    if (promptBar && promptBar->isVisible()) {
-        int barWidth = qMin(600, width() - 40);
-        promptBar->setFixedWidth(barWidth);
-        promptBar->move((width() - barWidth) / 2, height() - promptBar->height() - 20);
-    }
 }
 
 void QVGraphicsView::drawForeground(QPainter *painter, const QRectF &rect)
@@ -1158,38 +1240,122 @@ bool QVGraphicsView::undoRetouch()
 bool QVGraphicsView::checkGenerativeAccess()
 {
     QString token = qvGetSettingString(HFToken);
-    QString pythonPath = QDir(qApp->applicationDirPath()).filePath("scripts/.venv/Scripts/python.exe");
-    QString scriptPath = QDir(qApp->applicationDirPath()).filePath("scripts/flux_fill.py");
+    const QString scriptPath = resolveScriptsDir() + "/flux_fill.py";
+    const QString pythonPath = resolvePythonExe();
 
+    const QString logPath = resolveLogPath();
+    QDir().mkpath(QFileInfo(logPath).absolutePath());
+
+    // No token at all — skip the pointless ACCESS_GATED round-trip and go straight to setup
+    if (token.isEmpty()) {
+        HFAuthDialog dialog(qvGetSettingString(HFModelId), QString(), QString(), this);
+        if (dialog.exec() != QDialog::Accepted) return false;
+        token = dialog.getToken();
+        qvSetSetting(HFToken, token);
+    }
+
+    QString dialogError;
     while (true) {
         QProcess checkProcess;
-        QStringList args;
-        args << scriptPath << "--check_only" << "--model" << hfModelId;
-        if (!token.isEmpty()) {
-            args << "--token" << token;
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("PYTHONUNBUFFERED", "1");
+        checkProcess.setProcessEnvironment(env);
+
+        // Append a session header to the log
+        {
+            QFile log(logPath);
+            if (log.open(QIODevice::Append | QIODevice::Text))
+                log.write(QString("\n=== checkGenerativeAccess %1 ===\n")
+                              .arg(QDateTime::currentDateTime().toString(Qt::ISODate))
+                              .toUtf8());
         }
 
+        QStringList args;
+        args << "-u" << scriptPath << "--check_only"
+             << "--model"    << qvGetSettingString(HFModelId)
+             << "--vae"      << qvGetSettingString(HFVaeFile)
+             << "--text_enc" << qvGetSettingString(HFTextEncoderFile)
+             << "--base_repo"<< qvGetSettingString(HFBaseRepo);
+        if (!token.isEmpty())
+            args << "--token" << token;
+
         checkProcess.start(pythonPath, args);
-        if (!checkProcess.waitForFinished(10000)) {
-            QMessageBox::critical(this, tr("AI Error"), tr("Timed out checking model access."));
+
+        QProgressDialog progress(tr("Starting..."), tr("Cancel"), 0, 0, this);
+        progress.setWindowTitle(tr("Checking Flux Access"));
+        progress.setWindowModality(Qt::WindowModal);
+        progress.setMinimumDuration(0);
+        progress.setMinimumWidth(420);
+        progress.show();
+
+        QString lastResultLine;
+
+        QEventLoop loop;
+        connect(&checkProcess, &QProcess::readyReadStandardOutput, this, [&]() {
+            QFile log(logPath);
+            const bool logOpen = log.open(QIODevice::Append | QIODevice::Text);
+            while (checkProcess.canReadLine()) {
+                QString line = QString::fromUtf8(checkProcess.readLine()).trimmed();
+                if (logOpen) log.write((line + "\n").toUtf8());
+                if (line.isEmpty()) continue;
+                if (line.startsWith("STATUS:"))
+                    progress.setLabelText(line.mid(7).trimmed());
+                else
+                    lastResultLine = line;
+            }
+        });
+        connect(&checkProcess, &QProcess::readyReadStandardError, this, [&]() {
+            QFile log(logPath);
+            if (log.open(QIODevice::Append | QIODevice::Text))
+                log.write(checkProcess.readAllStandardError());
+        });
+        connect(&checkProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                &loop, &QEventLoop::quit);
+        connect(&progress, &QProgressDialog::canceled, &checkProcess, &QProcess::kill);
+        connect(&progress, &QProgressDialog::canceled, &loop, &QEventLoop::quit);
+        loop.exec();
+        progress.close();
+
+        if (checkProcess.state() != QProcess::NotRunning || progress.wasCanceled()) {
+            checkProcess.kill();
             return false;
         }
 
-        QString output = QString::fromUtf8(checkProcess.readAllStandardOutput()).trimmed();
+        // Drain any remaining output
+        while (checkProcess.canReadLine()) {
+            QString line = QString::fromUtf8(checkProcess.readLine()).trimmed();
+            if (!line.isEmpty() && !line.startsWith("STATUS:"))
+                lastResultLine = line;
+        }
+
+        QString output = lastResultLine.isEmpty()
+            ? QString::fromUtf8(checkProcess.readAllStandardOutput()).trimmed()
+            : lastResultLine;
+        QString errOutput = QString::fromUtf8(checkProcess.readAllStandardError()).trimmed();
+
         if (output == "ACCESS_GRANTED") {
             return true;
         } else if (output == "ACCESS_GATED") {
-            HFAuthDialog dialog(hfModelId, this);
-            if (dialog.exec() == QDialog::Accepted) {
-                token = dialog.getToken();
-                qvSetSetting(HFToken, token);
-                // Loop again to verify
-                continue;
-            } else {
-                return false;
-            }
+            // Token rejected or not yet agreed to terms — re-show dialog with inline error
+            dialogError = token.isEmpty()
+                ? tr("Access denied. Please agree to the model's terms on Hugging Face.")
+                : tr("Token was rejected. Please check you agreed to the model's terms and that the token has Read access.");
+            HFAuthDialog dialog(qvGetSettingString(HFModelId), token, dialogError, this);
+            if (dialog.exec() != QDialog::Accepted) return false;
+            token = dialog.getToken();
+            qvSetSetting(HFToken, token);
+            continue;
+        } else if (output.isEmpty()) {
+            const QString detail = errOutput.isEmpty()
+                ? tr("Python process produced no output. Check that the venv is set up correctly.\n\nLog: %1").arg(logPath)
+                : errOutput + tr("\n\nLog: %1").arg(logPath);
+            QMessageBox::critical(this, tr("Access Error"), tr("Could not check model access:\n\n%1").arg(detail));
+            return false;
         } else {
-            QMessageBox::critical(this, tr("Access Error"), tr("An error occurred while checking access: %1").arg(output));
+            QString detail = output;
+            if (!errOutput.isEmpty()) detail += "\n\n" + errOutput;
+            detail += tr("\n\nLog: %1").arg(logPath);
+            QMessageBox::critical(this, tr("Access Error"), tr("An error occurred while checking access:\n\n%1").arg(detail));
             return false;
         }
     }
@@ -1197,46 +1363,129 @@ bool QVGraphicsView::checkGenerativeAccess()
 
 void QVGraphicsView::ensureFluxStarted()
 {
-    if (fluxProcess && fluxProcess->state() == QProcess::Running)
+    // Pick distilled or base model variant based on the options toggle.
+    // The base repo ID is the same family but without step-distillation.
+    const bool useBase = qvGetSettingInt(HFUseBaseModel) == 1;
+    QString modelId = qvGetSettingString(HFModelId);
+    if (useBase && modelId == "black-forest-labs/FLUX.2-klein-4B")
+        modelId = "black-forest-labs/FLUX.2-klein-base-4B";
+    else if (!useBase && modelId == "black-forest-labs/FLUX.2-klein-base-4B")
+        modelId = "black-forest-labs/FLUX.2-klein-4B";
+
+    const QString vaeFile  = qvGetSettingString(HFVaeFile);
+    const QString teFile   = qvGetSettingString(HFTextEncoderFile);
+    const QString baseRepo = qvGetSettingString(HFBaseRepo);
+
+    // Resolve local model file paths (empty setting → computed default)
+    QString transformerPath = qvGetSettingString(FluxTransformerPath);
+    if (transformerPath.isEmpty()) {
+        const QString filename = modelId.split("/").last().toLower().replace(".", "-") + ".safetensors";
+        transformerPath = resolveModelsDir() + "/" + filename;
+    }
+    QString vaePath = qvGetSettingString(FluxVaePath);
+    if (vaePath.isEmpty())
+        vaePath = resolveModelsDir() + "/flux2-vae.safetensors";
+    QString textEncPath = qvGetSettingString(FluxTextEncPath);
+    if (textEncPath.isEmpty())
+        textEncPath = resolveModelsDir() + "/qwen_3_4b.safetensors";
+
+    // Signature covers all settings that affect the loaded model
+    const QString sig = modelId + "|" + vaeFile + "|" + teFile + "|" + baseRepo
+                      + "|" + transformerPath + "|" + vaePath + "|" + textEncPath;
+
+    if (fluxProcess && fluxProcess->state() == QProcess::Running && fluxLoadedModelId == sig)
         return;
 
-    if (!fluxProcess) {
-        fluxProcess = new QProcess(this);
-        connect(fluxProcess, &QProcess::readyReadStandardOutput, this, &QVGraphicsView::handleFluxOutput);
+    // Kill any running process if settings changed
+    if (fluxProcess && fluxProcess->state() == QProcess::Running) {
+        fluxProcess->kill();
+        fluxProcess->waitForFinished(2000);
     }
 
-    QString pythonPath = QDir(qApp->applicationDirPath()).filePath("scripts/.venv/Scripts/python.exe");
-    QString scriptPath = QDir(qApp->applicationDirPath()).filePath("scripts/flux_fill.py");
-    QString token = qvGetSettingString(HFToken);
+    if (fluxProcess) fluxProcess->deleteLater();
+    fluxProcess = new QProcess(this);
+    connect(fluxProcess, &QProcess::readyReadStandardOutput, this, &QVGraphicsView::handleFluxOutput);
+    connect(fluxProcess, &QProcess::readyReadStandardError, this, [this]() {
+        QFile log(resolveLogPath());
+        if (log.open(QIODevice::Append | QIODevice::Text))
+            log.write(fluxProcess->readAllStandardError());
+    });
+    {
+        QFile log(resolveLogPath());
+        QDir().mkpath(QFileInfo(log.fileName()).absolutePath());
+        if (log.open(QIODevice::Append | QIODevice::Text))
+            log.write(QString("\n=== ensureFluxStarted %1 ===\n")
+                          .arg(QDateTime::currentDateTime().toString(Qt::ISODate))
+                          .toUtf8());
+    }
 
-    QStringList args;
-    args << scriptPath << "--model" << hfModelId;
+    const QString token = qvGetSettingString(HFToken);
+    QStringList args = { resolveScriptsDir() + "/flux_fill.py",
+                         "--model",    modelId,
+                         "--vae",      vaeFile,
+                         "--text_enc", teFile,
+                         "--base_repo",baseRepo };
+    args << "--transformer_path" << transformerPath
+         << "--vae_path"         << vaePath
+         << "--text_enc_path"    << textEncPath;
     if (!token.isEmpty())
         args << "--token" << token;
 
-    fluxProcess->start(pythonPath, args);
+    fluxLoadedModelId = sig;
+    fluxProcess->start(resolvePythonExe(), args);
 }
 
 void QVGraphicsView::handleFluxOutput()
 {
+    QFile log(resolveLogPath());
+    const bool logOpen = log.open(QIODevice::Append | QIODevice::Text);
     while (fluxProcess->canReadLine()) {
         QString line = QString::fromUtf8(fluxProcess->readLine()).trimmed();
-        if (line.startsWith("OUTPUT: ")) {
-            QString outPath = line.mid(8);
-            QPixmap result(outPath);
+        if (logOpen) log.write((line + "\n").toUtf8());
+        if (line.startsWith("STATUS: ")) {
+            showAiStatus(line.mid(8));
+        } else if (line.startsWith("OUTPUT: ")) {
+            hideAiStatus();
+            QPixmap result(line.mid(8));
             if (!result.isNull()) {
                 undoPixmap = loadedPixmapItem->pixmap();
                 loadedPixmapItem->setPixmap(result);
-                viewport()->setCursor(Qt::CrossCursor);
+                exitRetouchMode(); // clear mask overlay so the result is visible
             }
+            QApplication::restoreOverrideCursor();
+        } else if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
+            hideAiStatus();
+            QApplication::restoreOverrideCursor();
+            QMessageBox::warning(this, tr("Generate Error"), line.mid(line.indexOf(':') + 1).trimmed());
         }
     }
 }
 
 void QVGraphicsView::applyCreativeFill()
 {
-    if (retouchTool == RetouchTool::Off || !loadedPixmapItem)
+    if (!getCurrentFileDetails().isPixmapLoaded)
         return;
+
+    if (retouchTool == RetouchTool::Off) {
+        toggleRetouchMode(); // Enter brush mode
+    }
+
+    if (promptBar) {
+        if (!promptBar->isVisible()) {
+            promptBar->show();
+            repositionPromptBar();
+            QTimer::singleShot(0, promptBar, [this]() { promptBar->setFocusToPrompt(); });
+            return;
+        }
+
+        QString prompt = promptBar->prompt();
+        if (prompt.isEmpty() || isMaskEmpty()) {
+            promptBar->setFocusToPrompt();
+            return;
+        }
+        
+        // If we have both prompt and mask, proceed to generation
+    }
 
     // First ensure access
     if (qvGetSettingString(HFToken).isEmpty()) {
@@ -1245,11 +1494,17 @@ void QVGraphicsView::applyCreativeFill()
 
     ensureFluxStarted();
 
-    QString prompt = promptBar->prompt();
+    QString prompt = promptBar ? promptBar->prompt() : QString();
     if (prompt.isEmpty()) return;
 
-    // Create mask image from the maskImage ARGB32
-    QImage mask = maskImage.convertToFormat(QImage::Format_Grayscale8);
+    // Build binary mask from the alpha channel (painted=255, unpainted=0)
+    QImage mask(maskImage.size(), QImage::Format_Grayscale8);
+    for (int y = 0; y < maskImage.height(); ++y) {
+        const QRgb *src = reinterpret_cast<const QRgb *>(maskImage.constScanLine(y));
+        uchar *dst = mask.scanLine(y);
+        for (int x = 0; x < maskImage.width(); ++x)
+            dst[x] = qAlpha(src[x]) > 0 ? 255 : 0;
+    }
 
     QString tempDir = QDir::tempPath();
     QString inputPath = QDir(tempDir).filePath("iqview_flux_in.bmp");
@@ -1263,4 +1518,164 @@ void QVGraphicsView::applyCreativeFill()
 
     QString cmd = QString("%1|%2|%3|%4\n").arg(inputPath, maskPath, prompt, outputPath);
     fluxProcess->write(cmd.toUtf8());
+}
+
+bool QVGraphicsView::isMaskEmpty() const
+{
+    return maskImage.isNull() || !maskHasPaint;
+}
+
+// ============================================================================
+// Isolate — SAM 3 background removal / subject isolation
+// ============================================================================
+
+void QVGraphicsView::ensureIsolateStarted()
+{
+    if (isolateProcess && isolateProcess->state() == QProcess::Running) return;
+
+    if (isolateProcess) isolateProcess->deleteLater();
+
+    isolateProcess = new QProcess(this);
+    connect(isolateProcess, &QProcess::readyReadStandardOutput,
+            this, &QVGraphicsView::handleIsolateOutput);
+    connect(isolateProcess, &QProcess::readyReadStandardError, this, [this]() {
+        QFile log(resolveLogPath());
+        if (log.open(QIODevice::Append | QIODevice::Text))
+            log.write(isolateProcess->readAllStandardError());
+    });
+
+    QStringList args = { resolveScriptsDir() + "/isolate.py" };
+    const QString token = qvGetSettingString(HFToken);
+    if (!token.isEmpty())
+        args << "--token" << token;
+
+    isolateProcess->start(resolvePythonExe(), args);
+}
+
+void QVGraphicsView::handleIsolateOutput()
+{
+    QFile log(resolveLogPath());
+    const bool logOpen = log.open(QIODevice::Append | QIODevice::Text);
+
+    while (isolateProcess->canReadLine()) {
+        QString line = QString::fromUtf8(isolateProcess->readLine()).trimmed();
+        if (logOpen) log.write((line + "\n").toUtf8());
+
+        if (line.startsWith("STATUS: ")) {
+            showAiStatus(line.mid(8));
+
+        } else if (line == "ACCESS_GATED") {
+            // SAM 3 is gated — reuse the Flux auth dialog to collect a token
+            hideAiStatus();
+            isolateState = IsolateState::Idle;
+            QApplication::restoreOverrideCursor();
+            if (isolateProcess) { isolateProcess->kill(); isolateProcess->deleteLater(); isolateProcess = nullptr; }
+
+            QString token = qvGetSettingString(HFToken);
+            const QString hint = tr("SAM 3 is a gated model. Accept the terms at "
+                                    "huggingface.co/facebook/sam3 and enter a token with Read access.");
+            HFAuthDialog dialog("facebook/sam3", token, hint, this);
+            if (dialog.exec() != QDialog::Accepted) return;
+            token = dialog.getToken();
+            qvSetSetting(HFToken, token);
+            // Retry with the new token
+            applyIsolate();
+            return;
+
+        } else if (line.startsWith("SEGMENTS: ")
+                   && isolateState == IsolateState::WaitingForSegments) {
+            hideAiStatus();
+            int n = line.mid(10).toInt();
+            if (n == 0) {
+                QMessageBox::warning(this, tr("Isolate"), tr("No segments found in this image."));
+                isolateState = IsolateState::Idle;
+                break;
+            }
+
+            QString tempDir  = QDir::tempPath();
+            QString vizPath  = QDir(tempDir).filePath("iqview_isolate_viz.png");
+            QString idMapPath = QDir(tempDir).filePath("iqview_isolate_ids.png");
+
+            IsolateDialog dlg(vizPath, idMapPath, n, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QSet<int> selected = dlg.selectedSegments();
+                if (!selected.isEmpty()) {
+                    isolateState = IsolateState::WaitingForCompose;
+
+                    QString outputPath = QDir(tempDir).filePath("iqview_isolate_out.png");
+                    QStringList ids;
+                    for (int id : selected) ids << QString::number(id);
+
+                    showAiStatus(tr("Compositing selection..."));
+                    QString cmd = QString("COMPOSE|%1|%2|%3\n")
+                                      .arg(isolateInputPath, ids.join(","), outputPath);
+                    isolateProcess->write(cmd.toUtf8());
+                } else {
+                    isolateState = IsolateState::Idle;
+                }
+            } else {
+                isolateState = IsolateState::Idle;
+            }
+
+        } else if (line.startsWith("OUTPUT: ")
+                   && isolateState == IsolateState::WaitingForCompose) {
+            hideAiStatus();
+            QPixmap result(line.mid(8));
+            if (!result.isNull()) {
+                undoPixmap = loadedPixmapItem->pixmap();
+                loadedPixmapItem->setPixmap(result);
+            }
+            isolateState = IsolateState::Idle;
+            QApplication::restoreOverrideCursor();
+
+        } else if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
+            hideAiStatus();
+            isolateState = IsolateState::Idle;
+            QApplication::restoreOverrideCursor();
+            QString msg = line.mid(line.indexOf(':') + 1).trimmed();
+            // Treat any gated-access error the same as ACCESS_GATED
+            if (msg.contains("gated", Qt::CaseInsensitive)
+                    || msg.contains("access", Qt::CaseInsensitive) && msg.contains("repo", Qt::CaseInsensitive)) {
+                if (isolateProcess) { isolateProcess->kill(); isolateProcess->deleteLater(); isolateProcess = nullptr; }
+                QString token = qvGetSettingString(HFToken);
+                const QString hint = tr("SAM 3 is a gated model. Accept the terms at "
+                                        "huggingface.co/facebook/sam3 and enter a token with Read access.");
+                HFAuthDialog dialog("facebook/sam3", token, hint, this);
+                if (dialog.exec() == QDialog::Accepted) {
+                    qvSetSetting(HFToken, dialog.getToken());
+                    applyIsolate();
+                }
+            } else {
+                QMessageBox::warning(this, tr("Isolate Error"), msg);
+            }
+        }
+    }
+}
+
+void QVGraphicsView::applyIsolate()
+{
+    if (!getCurrentFileDetails().isPixmapLoaded) return;
+    if (isolateState != IsolateState::Idle) return;   // already running
+
+    // Prompt for HF token upfront if none stored (SAM 3 is gated)
+    if (qvGetSettingString(HFToken).isEmpty()) {
+        if (!checkGenerativeAccess()) return;
+    }
+
+    QString tempDir   = QDir::tempPath();
+    isolateInputPath  = QDir(tempDir).filePath("iqview_isolate_in.png");
+    QString vizPath   = QDir(tempDir).filePath("iqview_isolate_viz.png");
+    QString idMapPath = QDir(tempDir).filePath("iqview_isolate_ids.png");
+
+    // Save the currently displayed image
+    loadedPixmapItem->pixmap().save(isolateInputPath);
+
+    ensureIsolateStarted();
+
+    isolateState = IsolateState::WaitingForSegments;
+    showAiStatus(tr("Segmenting image with SAM 3..."));
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    QString cmd = QString("SEGMENT|%1|%2|%3\n").arg(isolateInputPath, vizPath, idMapPath);
+    isolateProcess->write(cmd.toUtf8());
 }

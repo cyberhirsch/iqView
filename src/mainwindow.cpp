@@ -101,6 +101,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     contextMenu->addMenu(actionManager.buildViewMenu(true, contextMenu));
     contextMenu->addMenu(actionManager.buildToolsMenu(true, contextMenu));
     actionManager.addCloneOfAction(contextMenu, "retouch");
+    actionManager.addCloneOfAction(contextMenu, "generate");
+    actionManager.addCloneOfAction(contextMenu, "isolate");
     contextMenu->addMenu(actionManager.buildHelpMenu(true, contextMenu));
 
     connect(contextMenu, &QMenu::triggered, this, [this](QAction *triggeredAction) {
@@ -423,8 +425,7 @@ void MainWindow::disableActions()
                 } else if (cloneData.last() == "gifdisable") {
                     clone->setEnabled(getCurrentFileDetails().isMovieLoaded);
                 } else if (cloneData.last() == "undodisable") {
-                    clone->setEnabled(!lastDeletedFiles.isEmpty()
-                                      && !lastDeletedFiles.top().pathInTrash.isEmpty());
+                    clone->setEnabled(getCurrentFileDetails().isPixmapLoaded);
                 } else if (cloneData.last() == "folderdisable") {
                     clone->setEnabled(!getCurrentFileDetails().folderFileInfoList.isEmpty());
                 } else if (cloneData.last() == "windowdisable") {
@@ -1175,6 +1176,26 @@ void MainWindow::applyRetouch()
     graphicsView->applyRetouch();
 }
 
+void MainWindow::applyCreativeFill()
+{
+    graphicsView->applyCreativeFill();
+}
+
+void MainWindow::applyIsolate()
+{
+    graphicsView->applyIsolate();
+}
+
+void MainWindow::checkGenerativeAccess()
+{
+    graphicsView->checkGenerativeAccess();
+}
+
+void MainWindow::exitRetouchMode()
+{
+    graphicsView->exitRetouchMode();
+}
+
 void MainWindow::changeBrushSize(int delta)
 {
     graphicsView->changeBrushSize(delta);
@@ -1194,12 +1215,9 @@ void MainWindow::updateZoomLabel(qreal factor)
         connect(zoomTimer, &QTimer::timeout, zoomLabel, &QLabel::hide);
     }
 
-    int percentage = qRound(factor * 100);
-    zoomLabel->setText(tr("%1%").arg(percentage));
-    
-    int x = (width() - zoomLabel->width()) / 2;
-    int y = 20; 
-    zoomLabel->move(x, y);
+    zoomLabel->setText(tr("%1%").arg(qRound(factor * 100)));
+    zoomLabel->adjustSize();
+    zoomLabel->move((width() - zoomLabel->width()) / 2, 20);
     
     zoomLabel->show();
     zoomLabel->raise();

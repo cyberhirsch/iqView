@@ -170,6 +170,20 @@ void ShortcutManager::initializeShortcutsList()
                            "increasespeed",
                            QStringList(QKeySequence(Qt::Key_BracketRight).toString()),
                            {} });
+    shortcutsList.append(
+            { tr("Retouch"), "retouch", QStringList(QKeySequence(Qt::Key_R).toString()), {} });
+    shortcutsList.append({ tr("Generate"),
+                           "generate",
+                           QStringList(QKeySequence(Qt::Key_G).toString()),
+                           {} });
+    shortcutsList.append({ tr("Isolate"),
+                           "isolate",
+                           QStringList(QKeySequence(Qt::Key_S).toString()),
+                           {} });
+    shortcutsList.append({ tr("Cancel Retouch"),
+                           "cancelretouch",
+                           QStringList(QKeySequence(Qt::Key_Escape).toString()),
+                           {} });
     shortcutsList.append({ tr("Toggle Slideshow"), "slideshow", {}, {} });
     shortcutsList.append(
             { tr("Settings"), "options", keyBindingsToStringList(QKeySequence::Preferences), {} });

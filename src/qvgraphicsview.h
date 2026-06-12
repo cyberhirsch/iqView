@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QTimer>
 #include <QFileInfo>
+#include <QLabel>
 #include <QProcess>
 
 class QVGraphicsView : public QGraphicsView
@@ -56,6 +57,10 @@ public:
     void toggleRetouchMode();
     void applyRetouch();
     bool undoRetouch();
+    void applyCreativeFill();
+    void applyIsolate();
+    void exitRetouchMode();
+    bool checkGenerativeAccess();
     void changeBrushSize(int delta);
 
     const QVImageCore::FileDetails &getCurrentFileDetails() const
@@ -160,6 +165,7 @@ private:
     void updateMaskItem();
     void paintOnMask(const QPointF &scenePos);
     void finalizeLasso();
+    bool isMaskEmpty() const;
 
     // Persistent AI Worker
     QProcess *workerProcess = nullptr;
@@ -167,15 +173,35 @@ private:
     void ensureWorkerStarted();
     void handleWorkerOutput();
     QString pendingOutputPath;
+    bool maskHasPaint = false;
+
+    void repositionPromptBar();
+    void showAiStatus(const QString &text);
+    void hideAiStatus();
+    void repositionAiStatus();
+    static QString resolveScriptsDir();
+    static QString resolvePythonExe();
+    static QString resolveLogPath();
+    static QString resolveModelsDir();
 
     // Generative
-    bool checkGenerativeAccess();
-    void applyCreativeFill();
     void ensureFluxStarted();
     void handleFluxOutput();
-    
-    QString hfModelId = "black-forest-labs/FLUX.1-schnell";
+
     QProcess *fluxProcess = nullptr;
+    QString fluxLoadedModelId;
     class RetouchPromptBar *promptBar = nullptr;
+
+    // Isolate
+    enum class IsolateState { Idle, WaitingForSegments, WaitingForCompose };
+    void ensureIsolateStarted();
+    void handleIsolateOutput();
+
+    QProcess     *isolateProcess = nullptr;
+    IsolateState  isolateState   = IsolateState::Idle;
+    QString       isolateInputPath;
+
+    // AI status overlay (floating label shown during model load / download)
+    QLabel *aiStatusLabel = nullptr;
 };
 #endif // QVGRAPHICSVIEW_H

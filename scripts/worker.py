@@ -13,13 +13,48 @@ def log(msg):
         f.write(f"[{time.ctime()}] {msg}\n")
     # Don't print to stdout as it's used for communication
 
+
+def _download_model_if_needed(model_path):
+    """Download big-lama.onnx from HuggingFace if not already present."""
+    if os.path.isfile(model_path):
+        return
+    print("STATUS: LaMa model not found. Downloading (~200 MB, one-time)...", flush=True)
+    target_dir = os.path.dirname(model_path) or "."
+    os.makedirs(target_dir, exist_ok=True)
+    try:
+        from huggingface_hub import hf_hub_download
+        import shutil
+        downloaded = hf_hub_download(
+            repo_id="anyisalin/big-lama-onnx",
+            filename="onnx/model.onnx",
+            local_dir=target_dir,
+        )
+        if os.path.abspath(downloaded) != os.path.abspath(model_path):
+            shutil.move(downloaded, model_path)
+        print("STATUS: Download complete.", flush=True)
+    except Exception as e:
+        print(f"FATAL: Failed to download LaMa model: {e}", flush=True)
+        sys.exit(1)
+
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default=None,
+                        help="Path to big-lama.onnx. Defaults to big-lama.onnx next to this script.")
+    args = parser.parse_args()
+
     log("Persistent Worker Starting...")
-    
+
     # Identify model path
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(script_dir, "big-lama.onnx")
-    
+    model_path = args.model if args.model else os.path.join(script_dir, "big-lama.onnx")
+
+    # Auto-download if missing
+    _download_model_if_needed(model_path)
+
+    print("STATUS: Loading LaMa model...", flush=True)
+
     # Device detection
     available = ort.get_available_providers()
     requested = ['DmlExecutionProvider', 'CUDAExecutionProvider']

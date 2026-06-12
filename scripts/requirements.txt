@@ -3,3 +3,10 @@ numpy
 opencv-python
 pillow
 requests
+torch
+torchvision
+git+https://github.com/huggingface/diffusers.git
+transformers
+accelerate
+huggingface_hub
+safetensors

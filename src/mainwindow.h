@@ -117,6 +117,10 @@ public:
     void toggleFullScreen();
     void toggleRetouchMode();
     void applyRetouch();
+    void applyCreativeFill();
+    void applyIsolate();
+    void checkGenerativeAccess();
+    void exitRetouchMode();
     void changeBrushSize(int delta);
 
     // HUD

@@ -525,8 +525,6 @@ void ActionManager::actionTriggered(QAction *triggeredAction, MainWindow *releva
         qvApp->newWindow();
     } else if (key == "open") {
         qvApp->pickFile(relevantWindow);
-    } else if (key == "open") {
-        qvApp->pickFile(relevantWindow);
     } else if (key == "closewindow") {
         auto *active = QApplication::activeWindow();
 #ifdef COCOA_LOADED
@@ -631,8 +629,14 @@ void ActionManager::actionTriggered(QAction *triggeredAction, MainWindow *releva
         relevantWindow->toggleRetouchMode();
     } else if (key == "applyretouch") {
         relevantWindow->applyRetouch();
+    } else if (key == "generate") {
+        relevantWindow->applyCreativeFill();
+    } else if (key == "isolate") {
+        relevantWindow->applyIsolate();
+    } else if (key == "fluxcheck") {
+        relevantWindow->checkGenerativeAccess();
     } else if (key == "cancelretouch") {
-        relevantWindow->toggleRetouchMode();
+        relevantWindow->exitRetouchMode();
     } else if (key == "increasebrush") {
         relevantWindow->changeBrushSize(5);
     } else if (key == "decreasebrush") {
@@ -828,6 +832,16 @@ void ActionManager::initializeActionLibrary()
     cancelRetouchAction->setShortcut(QKeySequence(Qt::Key_Escape));
     actionLibrary.insert("cancelretouch", cancelRetouchAction);
 
+    auto *generateAction = new QAction(tr("&Generate"));
+    generateAction->setData({ "disable" });
+    generateAction->setShortcut(QKeySequence(Qt::Key_G));
+    actionLibrary.insert("generate", generateAction);
+
+    auto *isolateAction = new QAction(tr("&Isolate"));
+    isolateAction->setData({ "disable" });
+    isolateAction->setShortcut(QKeySequence(Qt::Key_S));
+    actionLibrary.insert("isolate", isolateAction);
+
     auto *increaseBrushAction = new QAction(tr("Increase Brush Size"));
     increaseBrushAction->setData({ "disable" });
     increaseBrushAction->setShortcut(QKeySequence(Qt::Key_BracketRight));
@@ -839,9 +853,6 @@ void ActionManager::initializeActionLibrary()
     actionLibrary.insert("decreasebrush", decreaseBrushAction);
 
     auto *fluxCheckAction = new QAction(tr("Check Flux Access"), this);
-    connect(fluxCheckAction, &QAction::triggered, [this]() {
-        graphicsView->checkGenerativeAccess();
-    });
     actionLibrary.insert("fluxcheck", fluxCheckAction);
 
     //: This is for the options dialog on windows

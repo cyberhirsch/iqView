@@ -8,7 +8,10 @@
 #include <QCheckBox>
 #include <QRadioButton>
 #include <QComboBox>
+#include <QLineEdit>
 #include <QSpinBox>
+#include <QStandardPaths>
+#include <QPushButton>
 
 namespace Ui {
 class QVOptionsDialog;
@@ -41,6 +44,10 @@ protected:
                      bool makeConnection = false);
     void syncDoubleSpinBox(QDoubleSpinBox *doubleSpinBox, const QString &key, bool defaults = false,
                            bool makeConnection = false);
+    void syncLineEdit(QLineEdit *lineEdit, const QString &key, bool defaults = false,
+                      bool makeConnection = false);
+    void syncPathLineEdit(QLineEdit *lineEdit, const QString &key, const QString &defaultPath,
+                          bool defaults = false, bool makeConnection = false);
     void syncShortcuts(bool defaults = false);
     void updateShortcutsTable();
     void updateButtonBox();

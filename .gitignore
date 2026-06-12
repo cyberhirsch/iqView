@@ -50,5 +50,12 @@ build/*
 *.qm
 # AI Models
 scripts/*.onnx
+scripts/*.safetensors
 scripts/__pycache__/
 scripts/.venv/
+
+# Claude Code workspace
+.claude/
+
+# Planning / scratch docs
+docs/tasks.md

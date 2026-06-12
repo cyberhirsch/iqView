@@ -57,7 +57,16 @@ static const SettingDefinition settingDefinitions[] = {
     { SettingsManager::Setting::SaveRecents, true, "saverecents" },
     { SettingsManager::Setting::UpdateNotifications, false, "updatenotifications" },
     { SettingsManager::Setting::SkipHidden, true, "skiphidden" },
-    { SettingsManager::Setting::HFToken, "", "hftoken" }
+    { SettingsManager::Setting::HFToken, "", "hftoken" },
+    { SettingsManager::Setting::HFModelId, "black-forest-labs/FLUX.2-klein-4B", "hfmodelid" },
+    { SettingsManager::Setting::HFVaeFile, "", "hfvaefile" },
+    { SettingsManager::Setting::HFTextEncoderFile, "", "hftextencfile" },
+    { SettingsManager::Setting::HFBaseRepo, "", "hfbaserepo" },
+    { SettingsManager::Setting::HFUseBaseModel, 0, "hfusebasemodel" },
+    { SettingsManager::Setting::LamaModelPath, "", "lamamodelpath" },
+    { SettingsManager::Setting::FluxTransformerPath, "", "fluxtransformerpath" },
+    { SettingsManager::Setting::FluxVaePath, "", "fluxvaepath" },
+    { SettingsManager::Setting::FluxTextEncPath, "", "fluxtextencpath" }
 };
 
 // settingKeys is a file-static variable, it doesn't need to be a member
@@ -135,6 +144,22 @@ void SettingsManager::loadSettings()
             data.value = newValue;
         }
     }
+
+    // One-time migration: "FLUX.2-dev" was briefly a default value earlier and may have
+    // been persisted. Reset any AI-source setting that still contains that stale value.
+    auto migrateLegacy = [&](Setting s, const char *key) {
+        SettingData &d = settingDataCache[static_cast<int>(s)];
+        const QString v = d.value.toString();
+        if (v.contains("FLUX.2-dev", Qt::CaseInsensitive)
+         || v.contains("FLUX.1-dev", Qt::CaseInsensitive)
+         || v.contains("FLUX.2-klein-9b-fp8", Qt::CaseInsensitive)) {
+            d.value = d.defaultValue;
+            settings.setValue(key, d.defaultValue);
+            changed = true;
+        }
+    };
+    migrateLegacy(Setting::HFModelId,  "hfmodelid");
+    migrateLegacy(Setting::HFBaseRepo, "hfbaserepo");
 
     if (changed)
         emit settingsUpdated();
