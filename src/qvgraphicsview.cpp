@@ -1411,6 +1411,15 @@ void QVGraphicsView::ensureFluxStarted()
         if (log.open(QIODevice::Append | QIODevice::Text))
             log.write(fluxProcess->readAllStandardError());
     });
+    connect(fluxProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        hideAiStatus();
+        QApplication::restoreOverrideCursor();
+        QMessageBox::critical(this, tr("Generate Error"),
+                              tr("The AI service failed to start: %1\n\n"
+                                 "Check that the Python environment is set up (run Retouch once "
+                                 "to install it).\n\nLog: %2")
+                                  .arg(fluxProcess->errorString(), resolveLogPath()));
+    });
     {
         QFile log(resolveLogPath());
         QDir().mkpath(QFileInfo(log.fileName()).absolutePath());
@@ -1452,12 +1461,14 @@ void QVGraphicsView::handleFluxOutput()
             showAiStatus(line.mid(8));
         } else if (line.startsWith("OUTPUT: ")) {
             hideAiStatus();
-            QPixmap result(line.mid(8));
-            if (!result.isNull()) {
-                undoPixmap = loadedPixmapItem->pixmap();
-                loadedPixmapItem->setPixmap(result);
-                exitRetouchMode(); // clear mask overlay so the result is visible
-            }
+            QString outputPath = line.mid(8).trimmed();
+            // Capture the current (original) pixmap for undo before loadFile replaces it.
+            undoPixmap = loadedPixmapItem->pixmap();
+            // Load result into imageCore — same as the LaMa pipeline does.
+            // Direct setPixmap() on the scene item would be overwritten 50 ms later
+            // by scaleExpensively(), which scales imageCore's (original) pixmap.
+            loadFile(outputPath);
+            exitRetouchMode();
             QApplication::restoreOverrideCursor();
         } else if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
             hideAiStatus();
@@ -1520,7 +1531,7 @@ void QVGraphicsView::applyCreativeFill()
     loadedPixmapItem->pixmap().save(inputPath);
     mask.save(maskPath);
 
-    viewport()->setCursor(Qt::WaitCursor);
+    QApplication::setOverrideCursor(Qt::WaitCursor);
 
     QString cmd = QString("%1|%2|%3|%4\n").arg(inputPath, maskPath, prompt, outputPath);
     fluxProcess->write(cmd.toUtf8());
