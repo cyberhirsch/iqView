@@ -16,6 +16,10 @@ print("STATUS: Libraries loaded.", flush=True)
 
 SAM3_MODEL_ID = "facebook/sam3"
 
+# Fail fast on stalled connections instead of hanging forever; the retry loop
+# in _download_model picks up where the partial file left off.
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
+
 # Distinct vibrant colors for up to 32 segments
 SEGMENT_COLORS = [
     (255,  59,  48),   #  1 red
@@ -76,6 +80,66 @@ def check_access(token=None):
         return str(e)
 
 
+def _download_model(token=None):
+    """Pre-download SAM 3 weights with progress reporting and automatic
+    resume. snapshot_download() keeps partial files (*.incomplete) and
+    continues them on retry, so a dropped connection never restarts from zero.
+    A heartbeat thread reports cache growth as STATUS lines for the UI."""
+    import threading
+    import time
+    from huggingface_hub import snapshot_download, constants
+
+    # Total repo size from the metadata API, for a percentage display
+    total = 0
+    try:
+        info = hf_model_info(SAM3_MODEL_ID, token=token, files_metadata=True)
+        total = sum(s.size or 0 for s in (info.siblings or []))
+    except Exception:
+        pass
+
+    cache_dir = os.path.join(constants.HF_HUB_CACHE, "models--facebook--sam3")
+
+    def _dir_size(path):
+        n = 0
+        for root, _, files in os.walk(path):
+            for f in files:
+                try:
+                    n += os.path.getsize(os.path.join(root, f))
+                except OSError:
+                    pass
+        return n
+
+    stop = threading.Event()
+
+    def _heartbeat():
+        while not stop.wait(timeout=3):
+            done_mb = _dir_size(cache_dir) / 1024**2
+            if total:
+                pct = min(100.0, done_mb / (total / 1024**2) * 100)
+                print(f"STATUS: Downloading SAM 3 — {done_mb:.0f} / {total / 1024**2:.0f} MB ({pct:.0f}%)",
+                      flush=True)
+            else:
+                print(f"STATUS: Downloading SAM 3 — {done_mb:.0f} MB so far", flush=True)
+
+    t = threading.Thread(target=_heartbeat, daemon=True)
+    t.start()
+    try:
+        max_attempts = 5
+        for attempt in range(1, max_attempts + 1):
+            try:
+                snapshot_download(SAM3_MODEL_ID, token=token)
+                break
+            except Exception as e:
+                if attempt == max_attempts:
+                    raise
+                print(f"STATUS: Download interrupted ({type(e).__name__}), "
+                      f"resuming (attempt {attempt + 1}/{max_attempts})...", flush=True)
+                time.sleep(3)
+    finally:
+        stop.set()
+        t.join(timeout=1)
+
+
 class IsolateWorker:
     def __init__(self, token=None):
         self.pipe   = None
@@ -83,9 +147,11 @@ class IsolateWorker:
         self._masks = []   # list of (H, W) bool numpy arrays, one per segment
 
     def _load_model(self):
-        print("STATUS: Loading SAM 3 model (~3.2 GB on first run)...", flush=True)
         if self.token:
             login(token=self.token)
+        print("STATUS: Checking SAM 3 weights (~3.2 GB on first run)...", flush=True)
+        _download_model(self.token)
+        print("STATUS: Loading SAM 3 model...", flush=True)
         device = 0 if torch.cuda.is_available() else "cpu"
         self.pipe = hf_pipeline(
             "mask-generation",
