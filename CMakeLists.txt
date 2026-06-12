@@ -66,6 +66,7 @@ set(PROJECT_SOURCES
     src/hfauthdialog.cpp
     src/retouchpromptbar.cpp
     src/isolatedialog.cpp
+    src/ailogdialog.cpp
 )
 
 # Header files
@@ -87,6 +88,7 @@ set(PROJECT_HEADERS
     src/hfauthdialog.h
     src/retouchpromptbar.h
     src/isolatedialog.h
+    src/ailogdialog.h
 )
 
 # UI form files

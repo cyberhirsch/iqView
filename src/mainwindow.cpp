@@ -103,6 +103,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     actionManager.addCloneOfAction(contextMenu, "retouch");
     actionManager.addCloneOfAction(contextMenu, "generate");
     actionManager.addCloneOfAction(contextMenu, "isolate");
+    actionManager.addCloneOfAction(contextMenu, "ailog");
     contextMenu->addMenu(actionManager.buildHelpMenu(true, contextMenu));
 
     connect(contextMenu, &QMenu::triggered, this, [this](QAction *triggeredAction) {
@@ -1184,6 +1185,11 @@ void MainWindow::applyCreativeFill()
 void MainWindow::applyIsolate()
 {
     graphicsView->applyIsolate();
+}
+
+void MainWindow::showAiLogWindow()
+{
+    graphicsView->showAiLogWindow();
 }
 
 void MainWindow::checkGenerativeAccess()

@@ -288,6 +288,12 @@ class FluxWorker:
             mask_t = torch.from_numpy(mask_np.astype(np.float32) / 255.0)
             self.pipe._inpaint_mask = mask_t.unsqueeze(0).unsqueeze(0)  # (1,1,H,W)
 
+        print(f"STATUS: Generating ({num_steps} steps)...", flush=True)
+
+        def _progress(pipe_ref, step_index, timestep, callback_kwargs):
+            print(f"STATUS: Generating... step {step_index + 1}/{num_steps}", flush=True)
+            return callback_kwargs
+
         try:
             result = self.pipe(
                 prompt=prompt,
@@ -297,6 +303,7 @@ class FluxWorker:
                 num_inference_steps=num_steps,
                 guidance_scale=guidance,
                 max_sequence_length=256,
+                callback_on_step_end=_progress,
             ).images[0]
         finally:
             if hasattr(self.pipe, '_inpaint_mask'):

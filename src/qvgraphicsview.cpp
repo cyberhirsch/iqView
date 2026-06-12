@@ -1,4 +1,5 @@
 #include "qvgraphicsview.h"
+#include "ailogdialog.h"
 #include "isolatedialog.h"
 #include <QThread>
 #include "hfauthdialog.h"
@@ -987,6 +988,25 @@ QString QVGraphicsView::resolveLogPath()
                .absoluteFilePath("flux.log");
 }
 
+// Returns a unique temp file path for an AI result. The image cache keys on
+// path + file size, and same-dimension BMP outputs are byte-identical in size —
+// so reusing one output path makes every generation after the first display
+// stale cached pixels. A fresh name per run sidesteps that. Outputs from
+// previous sessions (older than an hour) are cleaned up opportunistically.
+static QString uniqueAiOutputPath(const QString &prefix, const QString &ext)
+{
+    QDir temp(QDir::tempPath());
+    const auto previous = temp.entryInfoList({ prefix + "_*." + ext }, QDir::Files);
+    for (const auto &fileInfo : previous) {
+        if (fileInfo.lastModified().secsTo(QDateTime::currentDateTime()) > 3600)
+            QFile::remove(fileInfo.absoluteFilePath());
+    }
+    return temp.filePath(QString("%1_%2.%3")
+                             .arg(prefix)
+                             .arg(QDateTime::currentMSecsSinceEpoch())
+                             .arg(ext));
+}
+
 QString QVGraphicsView::resolveModelsDir()
 {
     return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/models";
@@ -1059,7 +1079,7 @@ void QVGraphicsView::applyRetouch()
 
     QString inputPath = QDir::tempPath() + "/iqview_retouch_in.bmp";
     QString maskPath = QDir::tempPath() + "/iqview_retouch_mask.bmp";
-    QString outputPath = QDir::tempPath() + "/iqview_retouch_out.bmp";
+    QString outputPath = uniqueAiOutputPath("iqview_retouch_out", "bmp");
 
     undoPixmap = loadedPixmapItem->pixmap();
     loadedPixmapItem->pixmap().save(inputPath, "BMP");
@@ -1526,7 +1546,7 @@ void QVGraphicsView::applyCreativeFill()
     QString tempDir = QDir::tempPath();
     QString inputPath = QDir(tempDir).filePath("iqview_flux_in.bmp");
     QString maskPath = QDir(tempDir).filePath("iqview_flux_mask.bmp");
-    QString outputPath = QDir(tempDir).filePath("iqview_flux_out.bmp");
+    QString outputPath = uniqueAiOutputPath("iqview_flux_out", "bmp");
 
     loadedPixmapItem->pixmap().save(inputPath);
     mask.save(maskPath);
@@ -1540,6 +1560,28 @@ void QVGraphicsView::applyCreativeFill()
 bool QVGraphicsView::isMaskEmpty() const
 {
     return maskImage.isNull() || !maskHasPaint;
+}
+
+void QVGraphicsView::showAiLogWindow()
+{
+    if (aiLogDialog) {
+        aiLogDialog->show();
+        aiLogDialog->raise();
+        aiLogDialog->activateWindow();
+        return;
+    }
+
+    const QString tempDir = QDir::tempPath();
+    QList<AiLogDialog::LogSource> sources = {
+        { tr("Flux / Isolate"), resolveLogPath() },
+        { tr("LaMa Worker"), QDir(tempDir).filePath("iqview_worker_log.txt") },
+        { tr("Retouch Session"), QDir(tempDir).filePath("iqview_retouch_log.txt") },
+    };
+
+    auto *dialog = new AiLogDialog(sources, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    aiLogDialog = dialog;
+    dialog->show();
 }
 
 // ============================================================================
@@ -1638,7 +1680,7 @@ void QVGraphicsView::handleIsolateOutput()
                 if (!selected.isEmpty()) {
                     isolateState = IsolateState::WaitingForCompose;
 
-                    QString outputPath = QDir(tempDir).filePath("iqview_isolate_out.png");
+                    QString outputPath = uniqueAiOutputPath("iqview_isolate_out", "png");
                     QStringList ids;
                     for (int id : selected) ids << QString::number(id);
 
@@ -1657,11 +1699,10 @@ void QVGraphicsView::handleIsolateOutput()
         } else if (line.startsWith("OUTPUT: ")
                    && isolateState == IsolateState::WaitingForCompose) {
             hideAiStatus();
-            QPixmap result(line.mid(8));
-            if (!result.isNull()) {
-                undoPixmap = loadedPixmapItem->pixmap();
-                loadedPixmapItem->setPixmap(result);
-            }
+            // Load via imageCore (not setPixmap) so a later scaleExpensively()
+            // doesn't restore the original image over the result.
+            undoPixmap = loadedPixmapItem->pixmap();
+            loadFile(line.mid(8).trimmed());
             isolateState = IsolateState::Idle;
             QApplication::restoreOverrideCursor();
 

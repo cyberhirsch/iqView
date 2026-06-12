@@ -9,6 +9,7 @@
 #include <QTimer>
 #include <QFileInfo>
 #include <QLabel>
+#include <QPointer>
 #include <QProcess>
 
 class QVGraphicsView : public QGraphicsView
@@ -62,6 +63,7 @@ public:
     void exitRetouchMode();
     bool checkGenerativeAccess();
     void changeBrushSize(int delta);
+    void showAiLogWindow();
 
     const QVImageCore::FileDetails &getCurrentFileDetails() const
     {
@@ -162,6 +164,7 @@ private:
     QPointF lastMouseScenePos;
     QPolygonF lassoPolygon;
     QPixmap undoPixmap;
+    QPointer<QDialog> aiLogDialog;
     void updateMaskItem();
     void paintOnMask(const QPointF &scenePos);
     void finalizeLasso();

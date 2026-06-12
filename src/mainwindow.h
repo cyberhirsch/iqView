@@ -119,6 +119,7 @@ public:
     void applyRetouch();
     void applyCreativeFill();
     void applyIsolate();
+    void showAiLogWindow();
     void checkGenerativeAccess();
     void exitRetouchMode();
     void changeBrushSize(int delta);

@@ -633,6 +633,8 @@ void ActionManager::actionTriggered(QAction *triggeredAction, MainWindow *releva
         relevantWindow->applyCreativeFill();
     } else if (key == "isolate") {
         relevantWindow->applyIsolate();
+    } else if (key == "ailog") {
+        relevantWindow->showAiLogWindow();
     } else if (key == "fluxcheck") {
         relevantWindow->checkGenerativeAccess();
     } else if (key == "cancelretouch") {
@@ -841,6 +843,9 @@ void ActionManager::initializeActionLibrary()
     isolateAction->setData({ "disable" });
     isolateAction->setShortcut(QKeySequence(Qt::Key_S));
     actionLibrary.insert("isolate", isolateAction);
+
+    auto *aiLogAction = new QAction(tr("AI Debug Log"));
+    actionLibrary.insert("ailog", aiLogAction);
 
     auto *increaseBrushAction = new QAction(tr("Increase Brush Size"));
     increaseBrushAction->setData({ "disable" });
