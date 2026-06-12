@@ -187,6 +187,11 @@ def main():
     parser.add_argument("--token", type=str, default=None)
     args = parser.parse_args()
 
+    # Token arrives via HF_TOKEN env var (not on the command line, where it would be
+    # visible in process listings). --token remains as a manual-testing fallback.
+    if not args.token:
+        args.token = os.environ.get("HF_TOKEN") or None
+
     # Verify access before loading the model so C++ can show the auth dialog.
     status = check_access(args.token)
     if status == "GATED":

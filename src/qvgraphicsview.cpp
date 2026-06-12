@@ -1259,6 +1259,9 @@ bool QVGraphicsView::checkGenerativeAccess()
         QProcess checkProcess;
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         env.insert("PYTHONUNBUFFERED", "1");
+        // Token goes via environment so it never shows up in process listings
+        if (!token.isEmpty())
+            env.insert("HF_TOKEN", token);
         checkProcess.setProcessEnvironment(env);
 
         // Append a session header to the log
@@ -1276,8 +1279,6 @@ bool QVGraphicsView::checkGenerativeAccess()
              << "--vae"      << qvGetSettingString(HFVaeFile)
              << "--text_enc" << qvGetSettingString(HFTextEncoderFile)
              << "--base_repo"<< qvGetSettingString(HFBaseRepo);
-        if (!token.isEmpty())
-            args << "--token" << token;
 
         checkProcess.start(pythonPath, args);
 
@@ -1419,7 +1420,6 @@ void QVGraphicsView::ensureFluxStarted()
                           .toUtf8());
     }
 
-    const QString token = qvGetSettingString(HFToken);
     QStringList args = { resolveScriptsDir() + "/flux_fill.py",
                          "--model",    modelId,
                          "--vae",      vaeFile,
@@ -1428,8 +1428,14 @@ void QVGraphicsView::ensureFluxStarted()
     args << "--transformer_path" << transformerPath
          << "--vae_path"         << vaePath
          << "--text_enc_path"    << textEncPath;
+
+    // Token goes via environment so it never shows up in process listings
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("PYTHONUNBUFFERED", "1");
+    const QString token = qvGetSettingString(HFToken);
     if (!token.isEmpty())
-        args << "--token" << token;
+        env.insert("HF_TOKEN", token);
+    fluxProcess->setProcessEnvironment(env);
 
     fluxLoadedModelId = sig;
     fluxProcess->start(resolvePythonExe(), args);
@@ -1543,11 +1549,29 @@ void QVGraphicsView::ensureIsolateStarted()
         if (log.open(QIODevice::Append | QIODevice::Text))
             log.write(isolateProcess->readAllStandardError());
     });
+    connect(isolateProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        if (isolateState == IsolateState::Idle)
+            return;
+        hideAiStatus();
+        isolateState = IsolateState::Idle;
+        QApplication::restoreOverrideCursor();
+        QMessageBox::critical(this, tr("Isolate Error"),
+                              tr("The AI service failed to start: %1\n\n"
+                                 "Check that the Python environment is set up (run Retouch once "
+                                 "to install it).\n\nLog: %2")
+                                  .arg(isolateProcess->errorString(), resolveLogPath()));
+    });
 
     QStringList args = { resolveScriptsDir() + "/isolate.py" };
+
+    // Pass the HF token via environment variable rather than the command line,
+    // where it would be visible to any local process inspecting arguments.
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("PYTHONUNBUFFERED", "1");
     const QString token = qvGetSettingString(HFToken);
     if (!token.isEmpty())
-        args << "--token" << token;
+        env.insert("HF_TOKEN", token);
+    isolateProcess->setProcessEnvironment(env);
 
     isolateProcess->start(resolvePythonExe(), args);
 }
@@ -1585,6 +1609,7 @@ void QVGraphicsView::handleIsolateOutput()
         } else if (line.startsWith("SEGMENTS: ")
                    && isolateState == IsolateState::WaitingForSegments) {
             hideAiStatus();
+            QApplication::restoreOverrideCursor();
             int n = line.mid(10).toInt();
             if (n == 0) {
                 QMessageBox::warning(this, tr("Isolate"), tr("No segments found in this image."));
@@ -1607,6 +1632,7 @@ void QVGraphicsView::handleIsolateOutput()
                     for (int id : selected) ids << QString::number(id);
 
                     showAiStatus(tr("Compositing selection..."));
+                    QApplication::setOverrideCursor(Qt::WaitCursor);
                     QString cmd = QString("COMPOSE|%1|%2|%3\n")
                                       .arg(isolateInputPath, ids.join(","), outputPath);
                     isolateProcess->write(cmd.toUtf8());

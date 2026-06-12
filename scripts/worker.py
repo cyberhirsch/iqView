@@ -124,11 +124,21 @@ def main():
             roi_img = img[y1:y2, x1:x2]
             roi_mask = mask_bin[y1:y2, x1:x2]
             
-            # 3. Prep
+            # 3. Prep — keep aspect ratio (squashing the ROI to a square distorts
+            # textures during inference), then edge-pad to the model's 512x512.
             target_size = 512
+            roi_h, roi_w = roi_img.shape[:2]
+            ar_scale = target_size / max(roi_h, roi_w)
+            scaled_w = max(8, min(target_size, int(round(roi_w * ar_scale))))
+            scaled_h = max(8, min(target_size, int(round(roi_h * ar_scale))))
+            pad_r = target_size - scaled_w
+            pad_b = target_size - scaled_h
+
             img_prep = cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB)
-            img_prep = cv2.resize(img_prep, (target_size, target_size), interpolation=cv2.INTER_AREA)
-            mask_prep = cv2.resize(roi_mask, (target_size, target_size), interpolation=cv2.INTER_NEAREST)
+            img_prep = cv2.resize(img_prep, (scaled_w, scaled_h), interpolation=cv2.INTER_AREA)
+            img_prep = cv2.copyMakeBorder(img_prep, 0, pad_b, 0, pad_r, cv2.BORDER_REPLICATE)
+            mask_prep = cv2.resize(roi_mask, (scaled_w, scaled_h), interpolation=cv2.INTER_NEAREST)
+            mask_prep = cv2.copyMakeBorder(mask_prep, 0, pad_b, 0, pad_r, cv2.BORDER_CONSTANT, value=0)
             
             t_img = img_prep.transpose(2, 0, 1).astype(np.float32) / 255.0
             t_mask = mask_prep[np.newaxis, ...].astype(np.float32) / 255.0
@@ -152,10 +162,11 @@ def main():
             if res_raw.max() <= 1.0:
                 res_raw = res_raw * 255.0
             
-            # 5. Post
+            # 5. Post — crop away the padding before scaling back to ROI size
             res_img = res_raw.transpose(1, 2, 0).astype(np.uint8)
             res_img = cv2.cvtColor(res_img, cv2.COLOR_RGB2BGR)
-            res_full = cv2.resize(res_img, (roi_img.shape[1], roi_img.shape[0]), interpolation=cv2.INTER_CUBIC)
+            res_img = res_img[:scaled_h, :scaled_w]
+            res_full = cv2.resize(res_img, (roi_w, roi_h), interpolation=cv2.INTER_CUBIC)
             
             # Blending
             mask_alpha = roi_mask.astype(float) / 255.0

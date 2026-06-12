@@ -3,7 +3,7 @@
 <p align=center>iqView is a powerful fork of <b>qView</b> that integrates local, GPU-accelerated AI tools for rapid image editing without sacrificing minimalism.</p>
 
 <h3 align=center>
-    Retouch | Object Removal | Local AI
+    Retouch | Creative Fill | Isolate | Local AI
 </h3>
 
 <p align=center>
@@ -11,28 +11,31 @@
 </p>
 
 ## ✨ What is iqView?
-While original qView is a fantastic minimalist viewer, **iqView** expands it into a lightweight creative toolkit. 
-
-Featuring built-in **LaMa (Large Mask Inpainting)**, you can instantly removed distracting objects, text, or photobombers directly from the viewer using your **NVIDIA RTX 3090** or other CUDA-capable GPUs.
+While original qView is a fantastic minimalist viewer, **iqView** expands it into a lightweight creative toolkit powered by local AI on your CUDA-capable GPU (developed on an NVIDIA RTX 3090).
 
 ## 🛠 AI Features
-- **Object Removal (R)**: Instantly mask and remove items.
-- **Multi-Tool Masking**: Switch between a **Brush** and a **Lasso** for precision.
-- **Zero Configuration**: AI models are downloaded automatically on the first run.
-- **Privacy First**: All AI processing happens locally on your machine—your photos never leave your computer.
+- **Object Removal (R)** — *LaMa inpainting*: mask distracting objects, text, or photobombers and they vanish in a fraction of a second. Brush and lasso masking tools included.
+- **Creative Fill (G)** — *FLUX.2 klein*: mask a region, type a prompt, and generate photo-real replacement content in seconds.
+- **Isolate (S)** — *SAM 3 segmentation*: automatically segment the image, pick the segments to keep, and get a transparent-background cutout.
+- **Zero Configuration**: the Python environment and AI models are set up and downloaded automatically on first use.
+- **Privacy First**: all AI processing happens locally on your machine — your photos never leave your computer. (Gated models like FLUX and SAM 3 require a free Hugging Face token to download weights.)
 
 ## 🎮 Shortcuts
-| Key | Action |
-| --- | --- |
-| **R** | Toggle Retouch Mode (Cycle: Brush -> Lasso -> Off) |
-| **Enter** | Apply Retouch / Confirm |
-| **Esc** | Cancel / Exit |
-| **Middle Click**| Apply Retouch (Quick Action) |
-| **Right Click** | Cancel Retouch (Quick Action) |
-| **[ / ]** | Adjust Brush Size |
+| Key | Action | Engine |
+| --- | --- | --- |
+| **R** | Toggle Retouch Mode (Cycle: Brush -> Lasso -> Off) / Apply if masked | LaMa |
+| **G** | Creative Fill: mask + prompt | FLUX.2 klein |
+| **S** | Isolate: segment and cut out subjects | SAM 3 |
+| **Enter** | Apply Retouch / Confirm | - |
+| **Esc** | Cancel / Exit Mode | - |
+| **Middle Click** | Apply Retouch (Quick Action) | - |
+| **Right Click** | Cancel Retouch (Quick Action) | - |
+| **[ / ]** | Adjust Brush Size | - |
+| **Ctrl+Z** | Undo / Compare | - |
+| **Ctrl+F** | Flip Image | - |
 
 ## Installation
-Requires **Python 3.10+** and `onnxruntime-gpu` for maximum performance.
+Requires **Python 3.10+** on your PATH; iqView creates its own virtual environment on first use. An NVIDIA GPU with CUDA is strongly recommended (CPU fallback works but is slow).
 C++ code builds with **Qt 6 / CMake** on Windows, Linux, and macOS.
 
 ---

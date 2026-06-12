@@ -329,6 +329,11 @@ def main():
     parser.add_argument("--text_enc_path",     type=str, default=None)
     args = parser.parse_args()
 
+    # Token arrives via HF_TOKEN env var (not on the command line, where it would be
+    # visible in process listings). --token remains as a manual-testing fallback.
+    if not args.token:
+        args.token = os.environ.get("HF_TOKEN") or None
+
     # Diagnostic: log all received arguments so we can see exactly what C++ sent
     print(f"STATUS: args.model={args.model!r}", flush=True)
     print(f"STATUS: args.base_repo={args.base_repo!r}", flush=True)
@@ -345,10 +350,12 @@ def main():
             or ("flux.2-klein-9b-fp8" in v)
 
     if _looks_legacy(args.model):
-        print(f"STATUS: Correcting stale model ID '{args.model}' -> '{DEFAULT_MODEL_ID}'", flush=True)
+        if args.model:
+            print(f"STATUS: Correcting stale model ID '{args.model}' -> '{DEFAULT_MODEL_ID}'", flush=True)
         args.model = DEFAULT_MODEL_ID
     if _looks_legacy(args.base_repo):
-        print(f"STATUS: Correcting stale base repo '{args.base_repo}' -> '{DEFAULT_BASE_REPO}'", flush=True)
+        if args.base_repo:
+            print(f"STATUS: Correcting stale base repo '{args.base_repo}' -> '{DEFAULT_BASE_REPO}'", flush=True)
         args.base_repo = DEFAULT_BASE_REPO
     if _looks_legacy(args.vae):
         args.vae = DEFAULT_VAE
