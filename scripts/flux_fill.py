@@ -308,8 +308,14 @@ class FluxWorker:
             result = result.resize(orig_size, Image.LANCZOS)
 
         # Blend: use generated pixels inside the mask region, keep originals outside.
+        # Feather the mask (dilate, then blur) so the seam fades over ~15 px instead of
+        # a 1-px hard edge — same treatment as the LaMa blend in worker.py. Dilating
+        # first keeps alpha at 1.0 across the whole painted mask, so the fade happens
+        # over generated content just outside it (which matches the original anyway).
+        from PIL import ImageFilter
+        feathered = mask.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(6))
         result_np = np.array(result)
-        alpha = mask_np.astype(float) / 255.0
+        alpha = np.array(feathered).astype(float) / 255.0
         alpha = alpha[..., np.newaxis]   # H×W×1 for broadcasting
         blended = (result_np * alpha + img_np * (1.0 - alpha)).clip(0, 255).astype(np.uint8)
         Image.fromarray(blended).save(output_path)
