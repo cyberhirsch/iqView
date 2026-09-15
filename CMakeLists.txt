@@ -139,13 +139,13 @@ endif()
 # Add the executable and link Qt libraries
 set(PROJECT_RESOURCES resources/resources.qrc)
 if(WIN32)
-    set(ICON_PATH_RAW "${CMAKE_CURRENT_SOURCE_DIR}/dist/win/qView.ico")
+    set(ICON_PATH_RAW "${CMAKE_CURRENT_SOURCE_DIR}/dist/win/iqView.ico")
     string(REPLACE "\\" "\\\\" ICON_PATH "${ICON_PATH_RAW}")
     configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/dist/win/qView.rc.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/qView.rc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/dist/win/iqView.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/iqView.rc"
     )
-    list(APPEND PROJECT_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/qView.rc")
+    list(APPEND PROJECT_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/iqView.rc")
 endif()
 add_executable(${PROJECT_NAME} ${EXECUTABLE_TYPE} ${PROJECT_SOURCES} ${PROJECT_HEADERS} ${PROJECT_FORMS} ${PROJECT_RESOURCES})
 

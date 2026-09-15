@@ -59,3 +59,11 @@ scripts/.venv/
 
 # Planning / scratch docs
 docs/tasks.md
+
+_info/
+
+# Windows installer staging/output (built by dist/win/iqView.iss)
+dist/win/iqView-Win32/
+dist/win/iqView-Win64/
+dist/win/iqView-WinArm64/
+dist/win/Output/

@@ -1,6 +1,6 @@
 #define MyAppName "iqView"
 #define MyAppPublisher "iqView Contributors"
-#define MyAppURL "https://github.com/cyberhirsch/IQview"
+#define MyAppURL "https://github.com/cyberhirsch/iqView"
 #define MyAppExeName "iqView.exe"
 
 ; Update these when building
@@ -25,12 +25,12 @@ OutputBaseFilename={#MyAppName}-{#MyAppVersion}-winarm64-setup
 #else
 OutputBaseFilename={#MyAppName}-{#MyAppVersion}-win64-setup
 #endif
-SetupIconFile=qView.ico
+SetupIconFile=iqView.ico
 WizardSmallImageFile=wiz-small.bmp
 WizardImageFile=wiz.bmp
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
-VersionInfoVersion={#MyAppVersion}
+VersionInfoVersion=1.0.0.0
 AppCopyright=Copyright © 2018-{#MyAppYear}, {#MyAppPublisher}
 MinVersion=0,6.1
 DisableProgramGroupPage=yes
@@ -64,7 +64,7 @@ Source: "iqView-WinArm64/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdi
 #else
 Source: "iqView-Win64/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 #endif
-Source: "qView.VisualElementsManifest.xml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "iqView.VisualElementsManifest.xml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "win-tile-m.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "win-tile-s.png"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -78,7 +78,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 [Registry]
 ; Key that specifies exe path to file associations
 Root: HKA; Subkey: "SOFTWARE\Classes\{#MyAppName}.1"; Flags: uninsdeletekey; Tasks: fileassociation
-Root: HKA; Subkey: "SOFTWARE\Classes\{#MyAppName}.1\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1""""; Tasks: fileassociation
+Root: HKA; Subkey: "SOFTWARE\Classes\{#MyAppName}.1\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: fileassociation
 
 ; File associations that point to the above key
 Root: HKA; Subkey: "SOFTWARE\Classes\.bmp\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppName}.1"; ValueData: ""; Flags: uninsdeletevalue; Tasks: fileassociation
