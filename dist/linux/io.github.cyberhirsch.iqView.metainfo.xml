@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+	<id>io.github.cyberhirsch.iqView</id>
+	<metadata_license>CC0-1.0</metadata_license>
+	<project_license>GPL-3.0+</project_license>
+	<name>iqView</name>
+	<summary>Minimal image viewer with local AI retouching</summary>
+	<developer_name>iqView Contributors</developer_name>
+	<description>
+		<p>iqView is a minimal Qt image viewer with local, GPU-accelerated AI tools built in: object removal (LaMa), prompt-driven creative fill (FLUX.2 klein) and one-click background removal (SAM 3). All processing runs on your own machine.</p>
+		<p>It also supports fast culling with star ratings and rejections stored in standard XMP sidecar files. iqView is a fork of qView by jurplel.</p>
+	</description>
+	<launchable type="desktop-id">io.github.cyberhirsch.iqView.desktop</launchable>
+	<url type="homepage">https://github.com/cyberhirsch/iqView</url>
+	<url type="bugtracker">https://github.com/cyberhirsch/iqView/issues</url>
+	<provides>
+		<binary>iqview</binary>
+	</provides>
+	<content_rating type="oars-1.0" />
+</component>

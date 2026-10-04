@@ -25,11 +25,11 @@ mkdir -p bin/appdir/usr
 DESTDIR="$PWD/bin/appdir" cmake --install build --prefix /usr
 # Copy AI scripts to staging
 cp -r scripts bin/appdir/usr/bin/scripts
-cp dist/linux/hicolor/scalable/apps/com.interversehq.iqView.svg bin/appdir/
+cp dist/linux/hicolor/scalable/apps/io.github.cyberhirsch.iqView.svg bin/appdir/
 cd bin
-rm qview
+rm iqview
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/
-../linuxdeployqt-continuous-x86_64.AppImage appdir/usr/share/applications/com.interversehq.iqView.desktop -appimage -updateinformation="gh-releases-zsync|jurplel|iqView|latest|iqView-*x86_64.AppImage.zsync" -extra-plugins=styles/libqt5ct-style.so,platformthemes/libqt5ct.so
+../linuxdeployqt-continuous-x86_64.AppImage appdir/usr/share/applications/io.github.cyberhirsch.iqView.desktop -appimage -updateinformation="gh-releases-zsync|cyberhirsch|iqView|latest|iqView-*x86_64.AppImage.zsync" -extra-plugins=styles/libqt5ct-style.so,platformthemes/libqt5ct.so
 
 if [ -n "$1" ]; then
     mv *.AppImage iqView-nightly-$1-x86_64.AppImage

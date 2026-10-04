@@ -180,9 +180,9 @@ elseif(APPLE)
 
     # Set the icon based on the Qt version, as per the Qt documentation.
     if(QT_VERSION_MAJOR LESS 6)
-        set(MACOSX_BUNDLE_ICON_FILE "qView_legacy.icns")
+        set(MACOSX_BUNDLE_ICON_FILE "iqView_legacy.icns")
     else()
-        set(MACOSX_BUNDLE_ICON_FILE "qView.icns")
+        set(MACOSX_BUNDLE_ICON_FILE "iqView.icns")
     endif()
 
     set(app_icon_macos "${CMAKE_CURRENT_SOURCE_DIR}/dist/mac/${MACOSX_BUNDLE_ICON_FILE}")
@@ -256,10 +256,10 @@ install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-install(FILES dist/linux/com.interversehq.qView.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES dist/linux/io.github.cyberhirsch.iqView.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(DIRECTORY dist/linux/hicolor/ DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor)
-install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/qview)
-install(FILES dist/linux/com.interversehq.qView.appdata.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/iqview)
+install(FILES dist/linux/io.github.cyberhirsch.iqView.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 
 # Include tests if requested
 if(BUILD_TESTS)

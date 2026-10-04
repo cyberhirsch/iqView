@@ -1,13 +1,13 @@
 [Desktop Entry]
-Name=qView
+Name=iqView
 GenericName=Image Viewer
 GenericName[pt]=Visualizador de imagens
 Type=Application
-Exec=qview %U
-Icon=com.interversehq.qView
+Exec=iqview %U
+Icon=io.github.cyberhirsch.iqView
 StartupNotify=true
-StartupWMClass=qview
-Comment=Minimal image viewer
+StartupWMClass=iqview
+Comment=Minimal image viewer with local AI retouching
 Comment[pt]=Visualizador de imagens minimalista
 Keywords=photos;pictures;jpeg;png;gif;webp;
 Keywords[pt]=fotos;imagens;jpeg;png;gif;webp;

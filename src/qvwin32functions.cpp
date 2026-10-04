@@ -71,8 +71,8 @@ QList<OpenWith::OpenWithItem> QVWin32Functions::getOpenWithItems(const QString &
         QString iconLocation = QString::fromWCharArray(icon);
         bool isAppx = iconLocation.contains("ms-resource");
 
-        // Don't include qView in open with menu
-        if (openWithItem.name == "qView")
+        // Don't include iqView in open with menu
+        if (openWithItem.name == "iqView")
             continue;
 
         // Validity check

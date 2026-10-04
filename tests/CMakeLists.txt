@@ -1,4 +1,4 @@
-# Tests for qView
+# Tests for iqView
 # This CMakeLists.txt should be included by the parent project
 
 # Find Qt Test component and other dependencies

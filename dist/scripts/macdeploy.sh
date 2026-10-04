@@ -1,10 +1,9 @@
 #!/usr/bin/bash
 
 if [[ -n "$1" ]]; then
-    VERSION=$0
+    VERSION="$1"
 else
-    VERSION=$(LC_ALL=C sed -n -e '/^VERSION/p' qView.pro)
-    VERSION=${VERSION: -3}
+    VERSION=$(grep -m1 '^CMAKE_PROJECT_VERSION:' build/CMakeCache.txt | cut -d= -f2)
 fi
 
 cd bin
